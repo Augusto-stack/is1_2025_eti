@@ -7,3 +7,9 @@ CREATE TABLE users (
     name TEXT NOT NULL UNIQUE,          -- Nombre de usuario (TEXT es el tipo de cadena recomendado para SQLite), con restricción UNIQUE
     password TEXT NOT NULL           -- Contraseña hasheada (TEXT es el tipo de cadena recomendado para SQLite)
 );
+
+CREATE TABLE teachers(
+    idTeacher INTEGER PRIMARY KEY autoincrement,
+    nameTeacher TEXT NOT NULL UNIQUE,
+    passwordTeacher TEXT NOT NULL
+);

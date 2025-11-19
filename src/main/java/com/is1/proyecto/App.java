@@ -1,24 +1,27 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
 // Importaciones necesarias para la aplicación Spark
-import com.fasterxml.jackson.databind.ObjectMapper; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import static spark.Spark.*; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import java.util.HashMap; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import java.util.Map; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
 
-// Importaciones específicas para ActiveJDBC (ORM para la base de datos)
-import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
-import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
+import org.javalite.activejdbc.Base;
+import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
+import org.slf4j.LoggerFactory; // Utilidad para hashear y verificar contraseñas de forma segura.
 
-// Importaciones de Spark para renderizado de plantillas
-import spark.ModelAndView; // Representa un modelo de datos y el nombre de la vista a renderizar.
-import spark.template.mustache.MustacheTemplateEngine; // Motor de plantillas Mustache para Spark.
+import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
+import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.models.User; // Para crear mapas de datos (modelos para las plantillas).
 
-// Importaciones estándar de Java
-import java.util.HashMap; // Para crear mapas de datos (modelos para las plantillas).
-import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
-
-// Importaciones de clases del proyecto
-import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import spark.HaltException;
+import spark.ModelAndView; // Interfaz Map, utilizada para Map.of() o HashMap.
+import static spark.Spark.after; // Clase Singleton para la configuración de la base de datos.
+import static spark.Spark.before; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import static spark.Spark.get;
+import static spark.Spark.halt;
+import static spark.Spark.port;
+import static spark.Spark.post;
+import spark.template.mustache.MustacheTemplateEngine;
 
 
 /**
@@ -31,6 +34,8 @@ public class App {
     // Se inicializa una sola vez para ser reutilizada en toda la aplicación.
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final Logger logger = LoggerFactory.getLogger(App.class);
+    
     /**
      * Método principal que se ejecuta al iniciar la aplicación.
      * Aquí se configuran todas las rutas y filtros de Spark.
@@ -49,7 +54,7 @@ public class App {
                 Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
                 System.out.println(req.url());
 
-            } catch (Exception e) {
+            } catch (HaltException e) {
                 // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
                 // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
@@ -286,12 +291,12 @@ public class App {
 
             } catch (Exception e) {
                 // Si ocurre cualquier error durante la operación de DB, se captura aquí.
-                System.err.println("Error al registrar usuario: " + e.getMessage());
-                e.printStackTrace(); // Imprime el stack trace para depuración.
+                //System.err.println("Error al registrar usuario: " + e.getMessage());
+                logger.error("Error al registrar usuario", e); // captura una parte del error no como el excecute que captura mucha info de mas
+                //e.printStackTrace(); // Imprime el stack trace para depuración.
                 res.status(500); // Internal Server Error.
                 return objectMapper.writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
             }
         });
-
     } // Fin del método main
 } // Fin de la clase App
