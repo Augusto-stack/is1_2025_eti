@@ -8,6 +8,8 @@ CREATE TABLE users (
     password TEXT NOT NULL           -- Contraseña hasheada (TEXT es el tipo de cadena recomendado para SQLite)
 );
 
+DROP TABLE IF EXISTS teachers;
+
 -- CREA LA TABLA DE PROFESORES
 CREATE TABLE teachers(
     id INTEGER PRIMARY KEY AUTOINCREMENT,

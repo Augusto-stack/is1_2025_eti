@@ -1,30 +1,29 @@
 package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir con la estructura de carpetas.
 
 // Importaciones necesarias para la aplicación Spark
-import com.fasterxml.jackson.databind.ObjectMapper; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
-import static spark.Spark.*; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
+import java.util.HashMap; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
+import java.util.Map; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
 
-// Importaciones específicas para ActiveJDBC (ORM para la base de datos)
 import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
 import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
 
-// Importaciones de Spark para renderizado de plantillas
-import spark.ModelAndView; // Representa un modelo de datos y el nombre de la vista a renderizar.
-import spark.template.mustache.MustacheTemplateEngine; // Motor de plantillas Mustache para Spark.
+import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
+import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.models.Teacher; // Para crear mapas de datos (modelos para las plantillas).
+import com.is1.proyecto.models.User; // Interfaz Map, utilizada para Map.of() o HashMap.
 
-// Importaciones estándar de Java
-import java.util.HashMap; // Para crear mapas de datos (modelos para las plantillas).
-import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
-
-// Importaciones de clases del proyecto
-import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
-import com.is1.proyecto.models.Teacher;
-import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
-
+import spark.ModelAndView; // Clase Singleton para la configuración de la base de datos.
+import static spark.Spark.after;
+import static spark.Spark.before; // Modelo de ActiveJDBC que representa la tabla 'users'.
+import static spark.Spark.get;
+import static spark.Spark.halt;
+import static spark.Spark.port;
+import static spark.Spark.post;
+import spark.template.mustache.MustacheTemplateEngine;
 
 /**
- * Clase principal de la aplicación Spark.
- * Configura las rutas, filtros y el inicio del servidor web.
+ * Clase principal de la aplicación Spark. Configura las rutas, filtros y el
+ * inicio del servidor web.
  */
 public class App {
 
@@ -33,8 +32,8 @@ public class App {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Método principal que se ejecuta al iniciar la aplicación.
-     * Aquí se configuran todas las rutas y filtros de Spark.
+     * Método principal que se ejecuta al iniciar la aplicación. Aquí se
+     * configuran todas las rutas y filtros de Spark.
      */
     public static void main(String[] args) {
         port(8080); // Configura el puerto en el que la aplicación Spark escuchará las peticiones (por defecto es 4567).
@@ -52,21 +51,21 @@ public class App {
 
                 //al comenzar la app ejecuto ese base exec por si no existe, asi no hay que correrlo manualmente
                 Base.exec(
-                    "CREATE TABLE IF NOT EXISTS users (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "name TEXT NOT NULL UNIQUE," +
-                    "password TEXT NOT NULL" +
-                    ");"
+                        "CREATE TABLE IF NOT EXISTS users ("
+                        + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                        + "name TEXT NOT NULL UNIQUE,"
+                        + "password TEXT NOT NULL"
+                        + ");"
                 );
-                
+
                 Base.exec(
-                    "CREATE TABLE IF NOT EXISTS teachers (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "name TEXT NOT NULL," +
-                    "lastName TEXT NOT NULL," +
-                    "dni INTEGER NOT NULL UNIQUE," +
-                    "email TEXT NOT NULL UNIQUE" +
-                    ");"
+                        "CREATE TABLE IF NOT EXISTS teachers ("
+                        + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                        + "name TEXT NOT NULL,"
+                        + "lastName TEXT NOT NULL,"
+                        + "dni INTEGER NOT NULL UNIQUE,"
+                        + "email TEXT NOT NULL UNIQUE"
+                        + ");"
                 );
 
             } catch (Exception e) {
@@ -90,7 +89,6 @@ public class App {
         });
 
         // --- Rutas GET para renderizar formularios y páginas HTML ---
-
         // GET: Muestra el formulario de creación de cuenta.
         // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
         get("/user/create", (req, res) -> {
@@ -175,10 +173,11 @@ public class App {
             return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el formulario.
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
-        //PARTE DE LO AGREGADO! GET
+        /// SECCION DE PROFESORES   
+        // GET para el manejo del envio de formulario de carga de profesor
         get("/cargarProfesor", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
-            
+
             String errorMessage = req.queryParams("error");
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 model.put("errorMessage", errorMessage);
@@ -188,57 +187,65 @@ public class App {
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
             }
-            return new ModelAndView(model, "teacher_formulario.mustache");   
+            return new ModelAndView(model, "teacher_formulario.mustache");
         }, new MustacheTemplateEngine());
 
-        //PARTE DE LO AGREGADO! POST
-        post("/cargarProfesor", (req,res) -> {
+        //POST de los profesores, envia el formulario con el alta de los datos del nuevo profesor
+        post("/cargarProfesor", (req, res) -> {
 
             //obtengo datos
             String name = req.queryParams("name");
             String lastname = req.queryParams("lastName");
             String email = req.queryParams("email");
-            int dni = Integer.parseInt(req.queryParams("dni"));  
+            int dni = Integer.parseInt(req.queryParams("dni"));
+
+            // Validaciones básicas: campos no pueden ser nulos o vacíos.
+            if (name == null || name.isEmpty() || lastname == null ||       lastname.isEmpty()||email == null || email.isEmpty() ||
+                req.queryParams("dni") == null || req.queryParams("dni").isEmpty()) {
+                res.status(400);
+                res.redirect("/cargaProfesor?error=Nombre y Apellido son requeridos.");
+                return "";
+            }
+
+            //compruebo el dni, su existencia
+            Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
+            if (dniExiste != null) {
+                res.status(409);
+                res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
+                return "";
+            }
+
+            //compruebo el email
+            Teacher emailExiste = Teacher.findFirst("email = ?", email);
+
+            if (emailExiste != null) {
+                res.status(409);
+                res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
+                return "";
+            }
 
             try {
-                //compruebo el dni, su existencia
-                Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
-
-                if (dniExiste != null) {
-                    res.status(409);
-                    res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
-                    return null;
-                } 
-
-                //compruebo el email
-                Teacher emailExiste = Teacher.findFirst("email = ?", email);
-
-                if (emailExiste != null) {
-                    res.status(409);
-                    res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
-                    return null;
-                }
 
                 Teacher teacher = new Teacher();
-                teacher.set("name",name);
-                teacher.set("lastName",lastname);
-                teacher.set("dni",dni);
-                teacher.set("email",email);
+                teacher.set("name", name);
+                teacher.set("lastName", lastname);
+                teacher.set("dni", dni);
+                teacher.set("email", email);
                 teacher.saveIt();
 
                 res.status(201);
-                res.redirect("/cargarProfesor?message=El docente se ingreso correctamente!");
-                return null;
+                res.redirect("/cargarProfesor?message=El docente" + name +""+ lastname + "se ingreso correctamente!");
+                return "";
+
             } catch (Exception e) {
-                System.err.println(e.getMessage());
+                System.err.println("Error en el alta del nuevo profesor: " + e.getMessage());
                 e.printStackTrace();
                 res.status(500);
                 res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
-                return null;
+                return "";
             }
 
-        }, new MustacheTemplateEngine());
-
+        });
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
         // POST: Maneja el envío del formulario de creación de nueva cuenta.
@@ -321,7 +328,6 @@ public class App {
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
 
-
                 model.put("username", username); // Añade el nombre de usuario al modelo para el dashboard.
                 // Renderiza la plantilla del dashboard tras un login exitoso.
                 return new ModelAndView(model, "dashboard.mustache");
@@ -333,7 +339,6 @@ public class App {
                 return new ModelAndView(model, "login.mustache"); // Renderiza la plantilla de login con error.
             }
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta POST.
-
 
         // POST: Endpoint para añadir usuarios (API que devuelve JSON, no HTML).
         // Advertencia: Esta ruta tiene un propósito diferente a las de formulario HTML.
