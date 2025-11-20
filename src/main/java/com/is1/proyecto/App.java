@@ -18,6 +18,7 @@ import java.util.Map; // Interfaz Map, utilizada para Map.of() o HashMap.
 
 // Importaciones de clases del proyecto
 import com.is1.proyecto.config.DBConfigSingleton; // Clase Singleton para la configuración de la base de datos.
+import com.is1.proyecto.models.Teacher;
 import com.is1.proyecto.models.User; // Modelo de ActiveJDBC que representa la tabla 'users'.
 
 
@@ -48,6 +49,25 @@ public class App {
                 // Abre una conexión a la base de datos utilizando las credenciales del singleton.
                 Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
                 System.out.println(req.url());
+
+                //al comenzar la app ejecuto ese base exec por si no existe, asi no hay que correrlo manualmente
+                Base.exec(
+                    "CREATE TABLE IF NOT EXISTS users (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "name TEXT NOT NULL UNIQUE," +
+                    "password TEXT NOT NULL" +
+                    ");"
+                );
+                
+                Base.exec(
+                    "CREATE TABLE IF NOT EXISTS teachers (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "name TEXT NOT NULL," +
+                    "lastName TEXT NOT NULL," +
+                    "dni INTEGER NOT NULL UNIQUE," +
+                    "email TEXT NOT NULL UNIQUE" +
+                    ");"
+                );
 
             } catch (Exception e) {
                 // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
@@ -155,9 +175,72 @@ public class App {
             return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el formulario.
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
+        //PARTE DE LO AGREGADO! GET
+        get("/cargarProfesor", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "teacher_formulario.mustache");   
+        }, new MustacheTemplateEngine());
+
+        //PARTE DE LO AGREGADO! POST
+        post("/cargarProfesor", (req,res) -> {
+
+            //obtengo datos
+            String name = req.queryParams("name");
+            String lastname = req.queryParams("lastName");
+            String email = req.queryParams("email");
+            int dni = Integer.parseInt(req.queryParams("dni"));  
+
+            try {
+                //compruebo el dni, su existencia
+                Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
+
+                if (dniExiste != null) {
+                    res.status(409);
+                    res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
+                    return null;
+                } 
+
+                //compruebo el email
+                Teacher emailExiste = Teacher.findFirst("email = ?", email);
+
+                if (emailExiste != null) {
+                    res.status(409);
+                    res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
+                    return null;
+                }
+
+                Teacher teacher = new Teacher();
+                teacher.set("name",name);
+                teacher.set("lastName",lastname);
+                teacher.set("dni",dni);
+                teacher.set("email",email);
+                teacher.saveIt();
+
+                res.status(201);
+                res.redirect("/cargarProfesor?message=El docente se ingreso correctamente!");
+                return null;
+            } catch (Exception e) {
+                System.err.println(e.getMessage());
+                e.printStackTrace();
+                res.status(500);
+                res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
+                return null;
+            }
+
+        }, new MustacheTemplateEngine());
+
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
-
         // POST: Maneja el envío del formulario de creación de nueva cuenta.
         post("/user/new", (req, res) -> {
             String name = req.queryParams("name");
@@ -196,7 +279,6 @@ public class App {
                 return ""; // Retorna una cadena vacía.
             }
         });
-
 
         // POST: Maneja el envío del formulario de inicio de sesión.
         post("/login", (req, res) -> {
@@ -292,6 +374,5 @@ public class App {
                 return objectMapper.writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
             }
         });
-
     } // Fin del método main
 } // Fin de la clase App
