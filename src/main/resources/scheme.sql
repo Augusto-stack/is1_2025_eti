@@ -9,7 +9,9 @@ CREATE TABLE users (
 );
 
 CREATE TABLE teachers(
-    idTeacher INTEGER PRIMARY KEY autoincrement,
-    nameTeacher TEXT NOT NULL UNIQUE,
-    passwordTeacher TEXT NOT NULL
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    lastName TEXT NOT NULL,
+    dni INTEGER NOT NULL UNIQUE,
+    email TEXT NOT NULL UNIQUE
 );

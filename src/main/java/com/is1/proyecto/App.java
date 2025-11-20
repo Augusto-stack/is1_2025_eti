@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory; // Utilidad para hashear y verificar contraseña
 
 import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.models.Teacher;
 import com.is1.proyecto.models.User; // Para crear mapas de datos (modelos para las plantillas).
 
 import spark.HaltException;
@@ -160,6 +161,71 @@ public class App {
             return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el formulario.
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
+                //PARTE DE LO AGREGADO! GET
+        get("/cargarProfesor", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "teacher_formulario.mustache");   
+        }, new MustacheTemplateEngine());
+
+        //PARTE DE LO AGREGADO! POST de la carga de profesores
+
+        
+        post("/cargarProfesor", (req,res) -> {
+
+            //obtengo datos
+            String name = req.queryParams("name");
+            String lastname = req.queryParams("lastName");
+            String email = req.queryParams("email");
+            int dni = Integer.parseInt(req.queryParams("dni"));  
+
+            try {
+                //compruebo el dni, su existencia
+                Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
+
+                if (dniExiste != null) {
+                    res.status(409);
+                    res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
+                    return null;
+                } 
+
+                //compruebo el email
+                Teacher emailExiste = Teacher.findFirst("email = ?", email);
+
+                if (emailExiste != null) {
+                    res.status(409);
+                    res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
+                    return null;
+                }
+
+                Teacher teacher = new Teacher();
+                teacher.set("name",name);
+                teacher.set("lastName",lastname);
+                teacher.set("dni",dni);
+                teacher.set("email",email);
+                teacher.saveIt();
+
+                res.status(201);
+                res.redirect("/cargarProfesor?message=El docente se ingreso correctamente!");
+                return null;
+            } catch (Exception e) {
+                System.err.println(e.getMessage());
+                e.printStackTrace();
+                res.status(500);
+                res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
+                return null;
+            }
+
+        }, new MustacheTemplateEngine());
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
 
