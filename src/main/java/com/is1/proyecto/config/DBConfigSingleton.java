@@ -17,7 +17,9 @@ public final class DBConfigSingleton {
     private DBConfigSingleton() {
         // Configuraciones para SQLite
         this.driver = "org.sqlite.JDBC"; // Driver JDBC para SQLite
-        this.dbUrl = System.getProperty("db.url", "jdbc:sqlite:./db/dev.db");
+        String basePath = System.getProperty("user.dir");// este es agregado
+        this.dbUrl = System.getProperty("db.url", "jdbc:sqlite:" + basePath + "/db/dev.db");//este agregado
+        //this.dbUrl = System.getProperty("db.url", "jdbc:sqlite:./db/dev.db");
         this.user = ""; // SQLite no usa usuario
         this.pass = ""; // SQLite no usa contraseña
     }
@@ -32,6 +34,7 @@ public final class DBConfigSingleton {
     // Métodos para abrir y cerrar la conexión
     public void openConnection() {
         // Utiliza los valores de las propiedades de la clase para abrir la conexión
+        System.out.println("Intentando abrir conexión a: " + this.dbUrl);
         Base.open(this.driver, this.dbUrl, this.user, this.pass);
     }
 

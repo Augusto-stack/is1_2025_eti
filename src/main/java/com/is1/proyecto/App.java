@@ -30,7 +30,7 @@ public class App {
     // Instancia estática y final de ObjectMapper para la serialización/deserialización JSON.
     // Se inicializa una sola vez para ser reutilizada en toda la aplicación.
     private static final ObjectMapper objectMapper = new ObjectMapper();
-
+    
     /**
      * Método principal que se ejecuta al iniciar la aplicación. Aquí se
      * configuran todas las rutas y filtros de Spark.
@@ -200,7 +200,7 @@ public class App {
             int dni = Integer.parseInt(req.queryParams("dni"));
 
             // Validaciones básicas: campos no pueden ser nulos o vacíos.
-            if (name == null || name.isEmpty() || lastname == null ||       lastname.isEmpty()||email == null || email.isEmpty() ||
+            if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty()||email == null || email.isEmpty() ||
                 req.queryParams("dni") == null || req.queryParams("dni").isEmpty()) {
                 res.status(400);
                 res.redirect("/cargaProfesor?error=Nombre y Apellido son requeridos.");
@@ -234,7 +234,7 @@ public class App {
                 teacher.saveIt();
 
                 res.status(201);
-                res.redirect("/cargarProfesor?message=El docente" + name +""+ lastname + "se ingreso correctamente!");
+                res.redirect("/cargarProfesor?message=El docente" + name +" "+ lastname + "se ingreso correctamente!");
                 return "";
 
             } catch (Exception e) {
