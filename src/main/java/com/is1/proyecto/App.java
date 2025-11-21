@@ -234,7 +234,7 @@ public class App {
                 teacher.saveIt();
 
                 res.status(201);
-                res.redirect("/cargarProfesor?message=El docente" + name +" "+ lastname + "se ingreso correctamente!");
+                res.redirect("/cargarProfesor?message=El docente "+ name +" "+lastname + " se ingreso correctamente!");
                 return "";
 
             } catch (Exception e) {
