@@ -27,52 +27,59 @@ import spark.template.mustache.MustacheTemplateEngine;
  */
 public class App {
 
-    // Instancia estática y final de ObjectMapper para la serialización/deserialización JSON.
+    // Instancia estática y final de ObjectMapper para la
+    // serialización/deserialización JSON.
     // Se inicializa una sola vez para ser reutilizada en toda la aplicación.
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     /**
      * Método principal que se ejecuta al iniciar la aplicación. Aquí se
      * configuran todas las rutas y filtros de Spark.
      */
     public static void main(String[] args) {
-        port(8080); // Configura el puerto en el que la aplicación Spark escuchará las peticiones (por defecto es 4567).
+        port(8080); // Configura el puerto en el que la aplicación Spark escuchará las peticiones
+                    // (por defecto es 4567).
 
-        // Obtener la instancia única del singleton de configuración de la base de datos.
+        // Obtener la instancia única del singleton de configuración de la base de
+        // datos.
         DBConfigSingleton dbConfig = DBConfigSingleton.getInstance();
 
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
         before((req, res) -> {
             try {
-                // Abre una conexión a la base de datos utilizando las credenciales del singleton.
+                // Abre una conexión a la base de datos utilizando las credenciales del
+                // singleton.
                 Base.open(dbConfig.getDriver(), dbConfig.getDbUrl(), dbConfig.getUser(), dbConfig.getPass());
                 System.out.println(req.url());
 
-                //al comenzar la app ejecuto ese base exec por si no existe, asi no hay que correrlo manualmente
+                // al comenzar la app ejecuto ese base exec por si no existe, asi no hay que
+                // correrlo manualmente
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS users ("
-                        + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                        + "name TEXT NOT NULL UNIQUE,"
-                        + "password TEXT NOT NULL"
-                        + ");"
-                );
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "name TEXT NOT NULL UNIQUE,"
+                                + "password TEXT NOT NULL,"
+                                + "loginAttempts INTEGER DEFAULT 0," // nuevo
+                                + "blocked INTEGER DEFAULT 0" // nuevo
+                                + ");");
 
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS teachers ("
-                        + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                        + "name TEXT NOT NULL,"
-                        + "lastName TEXT NOT NULL,"
-                        + "dni INTEGER NOT NULL UNIQUE,"
-                        + "email TEXT NOT NULL UNIQUE"
-                        + ");"
-                );
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "name TEXT NOT NULL,"
+                                + "lastName TEXT NOT NULL,"
+                                + "dni INTEGER NOT NULL UNIQUE,"
+                                + "email TEXT NOT NULL UNIQUE"
+                                + ");");
 
             } catch (Exception e) {
-                // Si ocurre un error al abrir la conexión, se registra y se detiene la solicitud
+                // Si ocurre un error al abrir la conexión, se registra y se detiene la
+                // solicitud
                 // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
                 System.err.println("Error al abrir conexión con ActiveJDBC: " + e.getMessage());
-                halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}" + e.getMessage());
+                halt(500, "{\"error\": \"Error interno del servidor: Fallo al conectar a la base de datos.\"}"
+                        + e.getMessage());
             }
         });
 
@@ -90,17 +97,20 @@ public class App {
 
         // --- Rutas GET para renderizar formularios y páginas HTML ---
         // GET: Muestra el formulario de creación de cuenta.
-        // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
+        // Soporta la visualización de mensajes de éxito o error pasados como query
+        // parameters.
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
 
-            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
+            // Obtener y añadir mensaje de éxito de los query parameters (ej.
+            // ?message=Cuenta creada!)
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
             }
 
-            // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos vacíos)
+            // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos
+            // vacíos)
             String errorMessage = req.queryParams("error");
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 model.put("errorMessage", errorMessage);
@@ -129,7 +139,8 @@ public class App {
                 return null; // Importante retornar null después de una redirección.
             }
 
-            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la plantilla.
+            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la
+            // plantilla.
             model.put("username", currentUsername);
 
             // 3. Renderiza la plantilla del dashboard con el nombre de usuario.
@@ -139,8 +150,10 @@ public class App {
         // GET: Ruta para cerrar la sesión del usuario.
         get("/logout", (req, res) -> {
             // Invalida completamente la sesión del usuario.
-            // Esto elimina todos los atributos guardados en la sesión y la marca como inválida.
-            // La cookie JSESSIONID en el navegador también será gestionada para invalidarse.
+            // Esto elimina todos los atributos guardados en la sesión y la marca como
+            // inválida.
+            // La cookie JSESSIONID en el navegador también será gestionada para
+            // invalidarse.
             req.session().invalidate();
 
             System.out.println("DEBUG: Sesión cerrada. Redirigiendo a /login.");
@@ -152,8 +165,10 @@ public class App {
         });
 
         // GET: Muestra el formulario de inicio de sesión (login).
-        // Nota: Esta ruta debería ser capaz de leer también mensajes de error/éxito de los query params
-        // si se la usa como destino de redirecciones. (Tu código de /user/create ya lo hace, aplicar similar).
+        // Nota: Esta ruta debería ser capaz de leer también mensajes de error/éxito de
+        // los query params
+        // si se la usa como destino de redirecciones. (Tu código de /user/create ya lo
+        // hace, aplicar similar).
         get("/", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
             String errorMessage = req.queryParams("error");
@@ -168,12 +183,14 @@ public class App {
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
         // GET: Ruta de alias para el formulario de creación de cuenta.
-        // En una aplicación real, probablemente querrías unificar con '/user/create' para evitar duplicidad.
+        // En una aplicación real, probablemente querrías unificar con '/user/create'
+        // para evitar duplicidad.
         get("/user/new", (req, res) -> {
-            return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el formulario.
+            return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el
+                                                                            // formulario.
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
-        /// SECCION DE PROFESORES   
+        /// SECCION DE PROFESORES
         // GET para el manejo del envio de formulario de carga de profesor
         get("/cargarProfesor", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -190,24 +207,26 @@ public class App {
             return new ModelAndView(model, "teacher_formulario.mustache");
         }, new MustacheTemplateEngine());
 
-        //POST de los profesores, envia el formulario con el alta de los datos del nuevo profesor
+        // POST de los profesores, envia el formulario con el alta de los datos del
+        // nuevo profesor
         post("/cargarProfesor", (req, res) -> {
 
-            //obtengo datos
+            // obtengo datos
             String name = req.queryParams("name");
             String lastname = req.queryParams("lastName");
             String email = req.queryParams("email");
             int dni = Integer.parseInt(req.queryParams("dni"));
 
             // Validaciones básicas: campos no pueden ser nulos o vacíos.
-            if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty()||email == null || email.isEmpty() ||
-                req.queryParams("dni") == null || req.queryParams("dni").isEmpty()) {
+            if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty() || email == null
+                    || email.isEmpty() ||
+                    req.queryParams("dni") == null || req.queryParams("dni").isEmpty()) {
                 res.status(400);
                 res.redirect("/cargaProfesor?error=Nombre y Apellido son requeridos.");
                 return "";
             }
 
-            //compruebo el dni, su existencia
+            // compruebo el dni, su existencia
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
             if (dniExiste != null) {
                 res.status(409);
@@ -215,7 +234,7 @@ public class App {
                 return "";
             }
 
-            //compruebo el email
+            // compruebo el email
             Teacher emailExiste = Teacher.findFirst("email = ?", email);
 
             if (emailExiste != null) {
@@ -234,7 +253,8 @@ public class App {
                 teacher.saveIt();
 
                 res.status(201);
-                res.redirect("/cargarProfesor?message=El docente "+ name +" "+lastname + " se ingreso correctamente!");
+                res.redirect(
+                        "/cargarProfesor?message=El docente " + name + " " + lastname + " se ingreso correctamente!");
                 return "";
 
             } catch (Exception e) {
@@ -277,7 +297,8 @@ public class App {
                 return ""; // Retorna una cadena vacía.
 
             } catch (Exception e) {
-                // Si ocurre cualquier error durante la operación de DB (ej. nombre de usuario duplicado),
+                // Si ocurre cualquier error durante la operación de DB (ej. nombre de usuario
+                // duplicado),
                 // se captura aquí y se redirige con un mensaje de error.
                 System.err.println("Error al registrar la cuenta: " + e.getMessage());
                 e.printStackTrace(); // Imprime el stack trace para depuración.
@@ -294,7 +315,8 @@ public class App {
             String username = req.queryParams("username");
             String plainTextPassword = req.queryParams("password");
 
-            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o vacíos.
+            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o
+            // vacíos.
             if (username == null || username.isEmpty() || plainTextPassword == null || plainTextPassword.isEmpty()) {
                 res.status(400); // Bad Request.
                 model.put("errorMessage", "El nombre de usuario y la contraseña son requeridos.");
@@ -306,24 +328,40 @@ public class App {
 
             // Si no se encuentra ninguna cuenta con ese nombre de usuario.
             if (ac == null) {
-                res.status(401); // Unauthorized.
-                model.put("errorMessage", "Usuario o contraseña incorrectos."); // Mensaje genérico por seguridad.
-                return new ModelAndView(model, "login.mustache"); // Renderiza la plantilla de login con error.
+                res.status(401);
+                model.put("errorMessage", "Usuario o contraseña incorrectos.");
+                return new ModelAndView(model, "login.mustache");
+            }
+
+            // Verificar si la cuenta está bloqueada                                NUEVO
+            int blocked = ac.getInteger("blocked");
+            if (blocked == 1) {
+                res.status(401);
+                model.put("errorMessage", "Tu cuenta está bloqueada, contactá al administrador.");
+                return new ModelAndView(model, "login.mustache");                  //NUEVO
             }
 
             // Obtiene la contraseña hasheada almacenada en la base de datos.
             String storedHashedPassword = ac.getString("password");
 
-            // Compara la contraseña en texto plano ingresada con la contraseña hasheada almacenada.
-            // BCrypt.checkpw hashea la plainTextPassword con el salt de storedHashedPassword y compara.
+            // Compara la contraseña en texto plano ingresada con la contraseña hasheada
+            // almacenada.
+            // BCrypt.checkpw hashea la plainTextPassword con el salt de
+            // storedHashedPassword y compara.
             if (BCrypt.checkpw(plainTextPassword, storedHashedPassword)) {
                 // Autenticación exitosa.
                 res.status(200); // OK.
 
                 // --- Gestión de Sesión ---
-                req.session(true).attribute("currentUserUsername", username); // Guarda el nombre de usuario en la sesión.
+                ac.set("loginAttempts", 0);             //NUEVO
+                ac.set("blocked", 0);
+                ac.saveIt();                            //NUEVO
+
+                req.session(true).attribute("currentUserUsername", username); // Guarda el nombre de usuario en la
+                                                                              // sesión.
                 req.session().attribute("userId", ac.getId()); // Guarda el ID de la cuenta en la sesión (útil).
-                req.session().attribute("loggedIn", true); // Establece una bandera para indicar que el usuario está logueado.
+                req.session().attribute("loggedIn", true); // Establece una bandera para indicar que el usuario está
+                                                           // logueado.
 
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
@@ -332,11 +370,25 @@ public class App {
                 // Renderiza la plantilla del dashboard tras un login exitoso.
                 return new ModelAndView(model, "dashboard.mustache");
             } else {
-                // Contraseña incorrecta.
-                res.status(401); // Unauthorized.
+                // Sumar 1 al contador de intentos fallidos                     NUEVO
+                int attempts = ac.getInteger("loginAttempts") + 1;                      
+                ac.set("loginAttempts", attempts);
+
+                // Si llegó a 3 intentos, bloquear la cuenta
+                if (attempts >= 3) {
+                    ac.set("blocked", 1);
+                    ac.saveIt();
+                    res.status(401);
+                    model.put("errorMessage",
+                            "Tu cuenta fue bloqueada por demasiados intentos fallidos. Contactá al administrador.");
+                    return new ModelAndView(model, "login.mustache");
+                }
+
+                ac.saveIt();
+                res.status(401);
                 System.out.println("DEBUG: Intento de login fallido para: " + username);
-                model.put("errorMessage", "Usuario o contraseña incorrectos."); // Mensaje genérico por seguridad.
-                return new ModelAndView(model, "login.mustache"); // Renderiza la plantilla de login con error.
+                model.put("errorMessage", "Usuario o contraseña incorrectos. Intentos restantes: " + (3 - attempts));
+                return new ModelAndView(model, "login.mustache");               //NUEVO
             }
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta POST.
 
@@ -362,21 +414,24 @@ public class App {
                 // En una aplicación real, las contraseñas DEBEN ser hasheadas (ej. con BCrypt)
                 // ANTES de guardarse en la base de datos, NUNCA en texto plano.
                 // (Nota: El código original tenía la contraseña en texto plano aquí.
-                // Se recomienda usar `BCrypt.hashpw(password, BCrypt.gensalt())` como en la ruta '/user/new').
+                // Se recomienda usar `BCrypt.hashpw(password, BCrypt.gensalt())` como en la
+                // ruta '/user/new').
                 newUser.set("name", name); // Asigna el nombre al campo 'name'.
                 newUser.set("password", password); // Asigna la contraseña al campo 'password'.
                 newUser.saveIt(); // Guarda el nuevo usuario en la tabla 'users'.
 
                 res.status(201); // Created.
                 // Devuelve una respuesta JSON con el mensaje y el ID del nuevo usuario.
-                return objectMapper.writeValueAsString(Map.of("message", "Usuario '" + name + "' registrado con éxito.", "id", newUser.getId()));
+                return objectMapper.writeValueAsString(
+                        Map.of("message", "Usuario '" + name + "' registrado con éxito.", "id", newUser.getId()));
 
             } catch (Exception e) {
                 // Si ocurre cualquier error durante la operación de DB, se captura aquí.
                 System.err.println("Error al registrar usuario: " + e.getMessage());
                 e.printStackTrace(); // Imprime el stack trace para depuración.
                 res.status(500); // Internal Server Error.
-                return objectMapper.writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
+                return objectMapper
+                        .writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
             }
         });
     } // Fin del método main
