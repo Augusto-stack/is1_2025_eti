@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administrador</title>
+</head>
+<body>
+    <h1>Panel de Administrador</h1>
+    <h2>Lista de Usuarios</h2>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Intentos fallidos</th>
+                <th>Estado</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#usuarios}}
+            <tr>
+                <td>{{nombre}}</td>
+                <td>{{intentos}}</td>
+                <td>{{#bloqueado}}Bloqueado{{/bloqueado}}{{^bloqueado}}Activo{{/bloqueado}}</td>
+                <td>
+                    {{#bloqueado}}
+                    <form action="/admin/desbloquear/{{nombre}}" method="post">
+                        <button type="submit">Desbloquear</button>
+                    </form>
+                    {{/bloqueado}}
+                </td>
+            </tr>
+            {{/usuarios}}
+        </tbody>
+    </table>
+
+    <br>
+    <a href="/dashboard">Volver al dashboard</a>
+</body>
+</html>

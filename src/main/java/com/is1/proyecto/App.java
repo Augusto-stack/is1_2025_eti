@@ -3,7 +3,8 @@ package com.is1.proyecto; // Define el paquete de la aplicación, debe coincidir
 // Importaciones necesarias para la aplicación Spark
 import java.util.HashMap; // Utilidad para serializar/deserializar objetos Java a/desde JSON.
 import java.util.Map; // Importa los métodos estáticos principales de Spark (get, post, before, after, etc.).
-
+import java.util.List;
+import java.util.ArrayList;
 import org.javalite.activejdbc.Base; // Clase central de ActiveJDBC para gestionar la conexión a la base de datos.
 import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contraseñas de forma segura.
 
@@ -72,6 +73,18 @@ public class App {
                                 + "dni INTEGER NOT NULL UNIQUE,"
                                 + "email TEXT NOT NULL UNIQUE"
                                 + ");");
+
+                // Crear usuario admin por defecto si no existe(VA A HABER SOLAMENTE 1)
+                User admin = User.findFirst("name = ?", "admin");
+                if (admin == null) {
+                    User newAdmin = new User();
+                    newAdmin.set("name", "admin");
+                    newAdmin.set("password", BCrypt.hashpw("admin123", BCrypt.gensalt()));
+                    newAdmin.set("loginAttempts", 0);
+                    newAdmin.set("blocked", 0);
+                    newAdmin.saveIt();
+                    System.out.println("DEBUG: Usuario admin creado por defecto.");
+                }
 
             } catch (Exception e) {
                 // Si ocurre un error al abrir la conexión, se registra y se detiene la
@@ -143,9 +156,108 @@ public class App {
             // plantilla.
             model.put("username", currentUsername);
 
-            // 3. Renderiza la plantilla del dashboard con el nombre de usuario.
+            // NUEVO
+            // 3. Si el usuario es admin, se le muestra el panel de administración en el
+            // dashboard
+            if (currentUsername.equals("admin")) {
+                model.put("isAdmin", true);
+            }
+            // NUEVO
+
+            // 4. Renderiza la plantilla del dashboard con el nombre de usuario.
             return new ModelAndView(model, "dashboard.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
+
+        // GET: Ruta para mostrar el formulario de login
+        get("/login", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "login.mustache");
+        }, new MustacheTemplateEngine());
+
+        // GET: Ruta para mostrar el formulario de login
+        get("/login", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                model.put("errorMessage", errorMessage);
+            }
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty()) {
+                model.put("successMessage", successMessage);
+            }
+            return new ModelAndView(model, "login.mustache");
+        }, new MustacheTemplateEngine());
+
+        // NUEVOcomo
+        // GET: Panel de admin para ver usuarios y desbloquear cuentas
+        get("/admin/usuarios", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+
+            // Verificar que el usuario esté logueado
+            Boolean loggedIn = req.session().attribute("loggedIn");
+            if (loggedIn == null || !loggedIn) {
+                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+                return null;
+            }
+
+            // NUEVO
+            // Verificar que el usuario sea admin
+            String currentUsername = req.session().attribute("currentUserUsername");
+            if (!currentUsername.equals("admin")) {
+                res.redirect("/dashboard?error=No tenés permisos para acceder a esa página.");
+                return null;
+            }
+            // NUEVO
+
+            // Obtener todos los usuarios
+            List<User> usuarios = User.findAll().load();
+            List<Map<String, Object>> listaUsuarios = new ArrayList<>(); // Creamos una lista vacía donde vamos a
+                                                                         // guardar los datos de cada usuario
+                                                                         // en un formato que Mustache pueda leer.
+
+            for (User u : usuarios) {
+                Map<String, Object> usuarioMap = new HashMap<>();
+                usuarioMap.put("nombre", u.getString("name")); // Por cada usuario convertimos sus datos a un mapa con
+                                                               // tres campos:
+                usuarioMap.put("bloqueado", u.getInteger("blocked") == 1);
+                usuarioMap.put("intentos", u.getInteger("loginAttempts"));
+                listaUsuarios.add(usuarioMap);
+            }
+
+            model.put("usuarios", listaUsuarios); // Mandamos la lista al mustache para que la muestre en pantalla.
+            return new ModelAndView(model, "admin_usuarios.mustache");
+
+        }, new MustacheTemplateEngine());
+        // NUEVO...
+
+        // NUEVO...
+        // POST: Desbloquear cuenta de usuario
+        post("/admin/desbloquear/:nombre", (req, res) -> {
+            String nombre = req.params(":nombre"); // Recibe el nombre del usurio bloqueado desde la URL
+
+            User u = User.findFirst("name = ?", nombre); // Lo busca en la BD
+
+            if (u == null) {
+                res.redirect("/admin/usuarios?error=Usuario no encontrado.");
+                return "";
+            }
+
+            u.set("blocked", 0); // Resetea el blocked a 0
+            u.set("loginAttempts", 0); // Resetea los intenos a 0
+            u.saveIt();
+
+            res.redirect("/admin/usuarios?message=Usuario " + nombre + " desbloqueado exitosamente.");
+            return "";
+        });
+        // NUEVO...
 
         // GET: Ruta para cerrar la sesión del usuario.
         get("/logout", (req, res) -> {
@@ -333,12 +445,12 @@ public class App {
                 return new ModelAndView(model, "login.mustache");
             }
 
-            // Verificar si la cuenta está bloqueada                                NUEVO
+            // Verificar si la cuenta está bloqueada NUEVO
             int blocked = ac.getInteger("blocked");
             if (blocked == 1) {
                 res.status(401);
                 model.put("errorMessage", "Tu cuenta está bloqueada, contactá al administrador.");
-                return new ModelAndView(model, "login.mustache");                  //NUEVO
+                return new ModelAndView(model, "login.mustache"); // NUEVO
             }
 
             // Obtiene la contraseña hasheada almacenada en la base de datos.
@@ -353,9 +465,9 @@ public class App {
                 res.status(200); // OK.
 
                 // --- Gestión de Sesión ---
-                ac.set("loginAttempts", 0);             //NUEVO
+                ac.set("loginAttempts", 0); // NUEVO
                 ac.set("blocked", 0);
-                ac.saveIt();                            //NUEVO
+                ac.saveIt(); // NUEVO
 
                 req.session(true).attribute("currentUserUsername", username); // Guarda el nombre de usuario en la
                                                                               // sesión.
@@ -368,10 +480,11 @@ public class App {
 
                 model.put("username", username); // Añade el nombre de usuario al modelo para el dashboard.
                 // Renderiza la plantilla del dashboard tras un login exitoso.
-                return new ModelAndView(model, "dashboard.mustache");
+                res.redirect("/dashboard");
+                return null;
             } else {
-                // Sumar 1 al contador de intentos fallidos                     NUEVO
-                int attempts = ac.getInteger("loginAttempts") + 1;                      
+                // Sumar 1 al contador de intentos fallidos NUEVO
+                int attempts = ac.getInteger("loginAttempts") + 1;
                 ac.set("loginAttempts", attempts);
 
                 // Si llegó a 3 intentos, bloquear la cuenta
@@ -388,7 +501,7 @@ public class App {
                 res.status(401);
                 System.out.println("DEBUG: Intento de login fallido para: " + username);
                 model.put("errorMessage", "Usuario o contraseña incorrectos. Intentos restantes: " + (3 - attempts));
-                return new ModelAndView(model, "login.mustache");               //NUEVO
+                return new ModelAndView(model, "login.mustache"); // NUEVO
             }
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta POST.
 
