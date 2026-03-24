@@ -61,6 +61,7 @@ public class App {
                                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                                 + "name TEXT NOT NULL UNIQUE,"
                                 + "password TEXT NOT NULL,"
+                                + "role TEXT NOT NULL DEFAULT 'alumno'," // nuevo
                                 + "loginAttempts INTEGER DEFAULT 0," // nuevo
                                 + "blocked INTEGER DEFAULT 0" // nuevo
                                 + ");");
@@ -82,6 +83,7 @@ public class App {
                     newAdmin.set("password", BCrypt.hashpw("admin123", BCrypt.gensalt()));
                     newAdmin.set("loginAttempts", 0);
                     newAdmin.set("blocked", 0);
+                    newAdmin.set("role", "admin"); // asignamos el rol de admin
                     newAdmin.saveIt();
                     System.out.println("DEBUG: Usuario admin creado por defecto.");
                 }
@@ -157,11 +159,14 @@ public class App {
             model.put("username", currentUsername);
 
             // NUEVO
-            // 3. Si el usuario es admin, se le muestra el panel de administración en el
-            // dashboard
-            if (currentUsername.equals("admin")) {
-                model.put("isAdmin", true);
-            }
+            // 3. Filtramos que tipo de rol tiene el usuario, para mostrar dashboard
+            // distintos
+            // si es un profesor, alumno o admin.
+            String userRole = req.session().attribute("userRole");
+            model.put("role", userRole);
+            model.put("isAdmin", userRole != null && userRole.equals("admin"));
+            model.put("isProfesor", userRole != null && userRole.equals("profesor"));
+            model.put("isAlumno", userRole != null && userRole.equals("alumno"));
             // NUEVO
 
             // 4. Renderiza la plantilla del dashboard con el nombre de usuario.
@@ -182,41 +187,16 @@ public class App {
             return new ModelAndView(model, "login.mustache");
         }, new MustacheTemplateEngine());
 
-        // GET: Ruta para mostrar el formulario de login
-        get("/login", (req, res) -> {
-            Map<String, Object> model = new HashMap<>();
-            String errorMessage = req.queryParams("error");
-            if (errorMessage != null && !errorMessage.isEmpty()) {
-                model.put("errorMessage", errorMessage);
-            }
-            String successMessage = req.queryParams("message");
-            if (successMessage != null && !successMessage.isEmpty()) {
-                model.put("successMessage", successMessage);
-            }
-            return new ModelAndView(model, "login.mustache");
-        }, new MustacheTemplateEngine());
-
-        // NUEVOcomo
+        // NUEVO
         // GET: Panel de admin para ver usuarios y desbloquear cuentas
         get("/admin/usuarios", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
-
-            // Verificar que el usuario esté logueado
-            Boolean loggedIn = req.session().attribute("loggedIn");
-            if (loggedIn == null || !loggedIn) {
-                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+            // (NUEVO)
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos para acceder a esta página.");
                 return null;
             }
-
-            // NUEVO
-            // Verificar que el usuario sea admin
-            String currentUsername = req.session().attribute("currentUserUsername");
-            if (!currentUsername.equals("admin")) {
-                res.redirect("/dashboard?error=No tenés permisos para acceder a esa página.");
-                return null;
-            }
-            // NUEVO
-
+            // (NUEVO)
             // Obtener todos los usuarios
             List<User> usuarios = User.findAll().load();
             List<Map<String, Object>> listaUsuarios = new ArrayList<>(); // Creamos una lista vacía donde vamos a
@@ -241,6 +221,13 @@ public class App {
         // NUEVO...
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
+
+            // Lo colocamos por si alguien supiera la URL para desbloquear usuarios.
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return "";
+            }
+
             String nombre = req.params(":nombre"); // Recibe el nombre del usurio bloqueado desde la URL
 
             User u = User.findFirst("name = ?", nombre); // Lo busca en la BD
@@ -327,16 +314,21 @@ public class App {
             String name = req.queryParams("name");
             String lastname = req.queryParams("lastName");
             String email = req.queryParams("email");
-            int dni = Integer.parseInt(req.queryParams("dni"));
+            String dniStr = req.queryParams("dni");
+            String username = req.queryParams("username"); // (NUEVO)
+            String password = req.queryParams("password"); // (NUEVO)
 
             // Validaciones básicas: campos no pueden ser nulos o vacíos.
-            if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty() || email == null
-                    || email.isEmpty() ||
-                    req.queryParams("dni") == null || req.queryParams("dni").isEmpty()) {
-                res.status(400);
-                res.redirect("/cargaProfesor?error=Nombre y Apellido son requeridos.");
+            if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty()
+                    || email == null || email.isEmpty()
+                    || dniStr == null || dniStr.isEmpty()
+                    || username == null || username.isEmpty() // ← nuevo
+                    || password == null || password.isEmpty()) { // ← nuevo
+                res.redirect("/cargarProfesor?error=Todos los campos son requeridos.");
                 return "";
             }
+
+            int dni = Integer.parseInt(dniStr);
 
             // compruebo el dni, su existencia
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
@@ -355,14 +347,30 @@ public class App {
                 return "";
             }
 
-            try {
+            // Verificar que no haya nombre de usuario igual en la BD (NUEVO)
+            User usernameExiste = User.findFirst("name = ?", username);
+            if (usernameExiste != null) {
+                res.redirect("/cargarProfesor?error=El nombre de usuario '" + username + "' ya está en uso.");
+                return "";
+            }
 
+            try {
+                // Guardamos al profesor
                 Teacher teacher = new Teacher();
                 teacher.set("name", name);
                 teacher.set("lastName", lastname);
                 teacher.set("dni", dni);
                 teacher.set("email", email);
                 teacher.saveIt();
+
+                // Creamos las credenciales del profesor (NUEVO)
+                User nuevoUser = new User();
+                nuevoUser.set("name", username);
+                nuevoUser.set("password", BCrypt.hashpw(password, BCrypt.gensalt()));
+                nuevoUser.set("role", "profesor");
+                nuevoUser.set("loginAttempts", 0);
+                nuevoUser.set("blocked", 0);
+                nuevoUser.saveIt();
 
                 res.status(201);
                 res.redirect(
@@ -474,6 +482,8 @@ public class App {
                 req.session().attribute("userId", ac.getId()); // Guarda el ID de la cuenta en la sesión (útil).
                 req.session().attribute("loggedIn", true); // Establece una bandera para indicar que el usuario está
                                                            // logueado.
+                String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
+                req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
@@ -548,4 +558,11 @@ public class App {
             }
         });
     } // Fin del método main
+
+    // Creamos este metodo para ahorrarnos el verificar si es admin o no.
+    private static boolean esAdmin(spark.Request req) {
+        Boolean loggedIn = req.session().attribute("loggedIn");
+        String role = req.session().attribute("userRole");
+        return loggedIn != null && loggedIn && "admin".equals(role);
+    }
 } // Fin de la clase App

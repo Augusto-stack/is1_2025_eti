@@ -3,37 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Bienvenido</title>
+    <title>Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
     <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
+        {{#isAdmin}}
+        <span class="absolute top-4 right-4 bg-red-100 text-red-700 text-sm font-semibold px-3 py-1 rounded-full">Admin</span>
+        {{/isAdmin}}
+        {{#isProfesor}}
+        <span class="absolute top-4 right-4 bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full">Profesor</span>
+        {{/isProfesor}}
+        {{#isAlumno}}
+        <span class="absolute top-4 right-4 bg-green-100 text-green-700 text-sm font-semibold px-3 py-1 rounded-full">Alumno</span>
+        {{/isAlumno}}
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Panel de Control</h1>
 
-        {{#username}}
-        <p class="text-xl text-center text-gray-700 mb-8">¡Bienvenido, <span class="font-semibold text-blue-600">{{username}}</span>!</p>
-        {{/username}}
-        {{^username}}
-        <p class="text-xl text-center text-gray-700 mb-8">¡Bienvenido!</p>
-        {{/username}}
+        <p class="text-xl text-center text-gray-700 mb-8">
+            ¡Bienvenido/a, <span class="font-semibold text-blue-600">{{username}}</span>!
+        </p>
 
-        <div class="display-flex grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-lg text-center shadow-sm">
-                <h2 class="text-2xl font-bold text-yellow-700 mb-3">Añadir Profesor</h2>
-                <p class="text-gray-600 mb-4">Ingresa los datos del profesor en el sistema.</p>
-                <a href="/cargarProfesor" class="inline-block bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700 transition duration-300">Añadir</a>
-            </div>
+        <div class="grid grid-cols-1 gap-6 mb-8">
+
             {{#isAdmin}}
-            <div class="bg-red-50 border border-red-200 p-6 rounded-lg text-center shadow-sm mt-4">
-                <h2 class="text-2xl font-bold text-red-700 mb-3">Panel de Administrador</h2>
-                <p class="text-gray-600 mb-4">Gestioná los usuarios del sistema.</p>
+            <div class="bg-red-50 border border-red-200 p-6 rounded-lg text-center shadow-sm">
+                <h2 class="text-2xl font-bold text-red-700 mb-3">Gestión de Usuarios</h2>
+                <p class="text-gray-600 mb-4">Administrá las cuentas del sistema.</p>
                 <a href="/admin/usuarios" class="inline-block bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition duration-300">Ver Usuarios</a>
             </div>
+            <div class="bg-yellow-50 border border-yellow-200 p-6 rounded-lg text-center shadow-sm">
+                <h2 class="text-2xl font-bold text-yellow-700 mb-3">Cargar Profesor</h2>
+                <p class="text-gray-600 mb-4">Ingresá los datos de un nuevo profesor.</p>
+                <a href="/cargarProfesor" class="inline-block bg-yellow-600 text-white py-2 px-4 rounded-md hover:bg-yellow-700 transition duration-300">Añadir</a>
+            </div>
             {{/isAdmin}}
+
+            {{#isProfesor}}
+            <div class="bg-blue-50 border border-blue-200 p-6 rounded-lg text-center shadow-sm">
+                <h2 class="text-2xl font-bold text-blue-700 mb-3">Mis Materias</h2>
+                <p class="text-gray-600 mb-4">Visualizá las materias que tenés asignadas.</p>
+                <a href="/profesor/materias" class="inline-block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300">Ver Materias</a>
+            </div>
+            {{/isProfesor}}
+
+            {{#isAlumno}}
+            <div class="bg-green-50 border border-green-200 p-6 rounded-lg text-center shadow-sm">
+                <h2 class="text-2xl font-bold text-green-700 mb-3">Mis Materias</h2>
+                <p class="text-gray-600 mb-4">Inscribite o revisá tus materias disponibles.</p>
+                <a href="/alumno/materias" class="inline-block bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-300">Ver Materias</a>
+            </div>
+            <div class="bg-green-50 border border-green-200 p-6 rounded-lg text-center shadow-sm">
+                <h2 class="text-2xl font-bold text-green-700 mb-3">Mis Notas</h2>
+                <p class="text-gray-600 mb-4">Consultá tus calificaciones.</p>
+                <a href="/alumno/notas" class="inline-block bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-300">Ver Notas</a>
+            </div>
+            {{/isAlumno}}
+
         </div>
-        
+
         <div class="text-center mt-6">
-            <a href="/logout" class="inline-block bg-red-600 text-white py-2 px-6 rounded-md hover:bg-red-700 transition duration-300 text-lg">Cerrar Sesión</a>
+            <a href="/logout" class="inline-block bg-gray-600 text-white py-2 px-6 rounded-md hover:bg-gray-700 transition duration-300 text-lg">Cerrar Sesión</a>
         </div>
     </div>
 </body>
