@@ -11,12 +11,12 @@
 
 ### a) Problemas propuestos por nuestro equipo a resolver.
 
-- Poner un limite de intentos a 3 en el login de Usuario.
-- Colocar una via para recuperar contraseña.
-- Nuevos roles: *alumno*, *profesor*, *admin*.
+- Poner un limite de intentos a 3 en el login de Usuario. (HECHO)
+- Colocar una via para recuperar contraseña.              (DUDA)
+- Nuevos roles: *alumno*, *profesor*, *admin*.              (HECHO)
 - Nueva entidad: **Asignatura** (nombre, profesor a cargo, calificacion, estudiantes inscriptos, cantidad estudiantes).
 - Filtros en la creacion de cuentas.
-- Cada rol vea un dashboard distinto.
+- Cada rol vea un dashboard distinto.           
 
 --- 
 
