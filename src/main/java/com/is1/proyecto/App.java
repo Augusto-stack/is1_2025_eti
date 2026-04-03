@@ -485,6 +485,18 @@ public class App {
                 String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
                 req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
+                // --- NUEVO: Configuración de expiración de sesión según rol ---
+                // Si el usuario NO es admin, se aplica expiración automática
+                if (userRole != null && !userRole.equals("admin")) {
+                    // Tiempo en segundos (ej: 10 minutos = 600 segundos)
+                    req.session().maxInactiveInterval(600);
+                    System.out.println("DEBUG: Sesión con expiración configurada para usuario no admin.");
+                } else {
+                    // Para admin no se establece expiración (sesión sin límite de inactividad)
+                    // Opcionalmente se puede poner un valor muy alto, pero por defecto no es necesario
+                    System.out.println("DEBUG: Sesión sin expiración para usuario admin.");
+                }
+
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
 
