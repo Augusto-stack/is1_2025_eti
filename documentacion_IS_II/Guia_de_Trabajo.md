@@ -61,8 +61,8 @@ En cuanto a la persistencia de datos, se utilizará una base de datos liviana **
 
 ---
 
-### d) Tamaño del equipo y Plazo estimado
+### 1.7 Tamaño del equipo y Plazo estimado
 
  El tamaño de nuestro equipo va a ser de 5 personas y el plazo que creemos que nos va a llevar van a ser 2 meses.
 
- ### e) Cambio de alcanse ocurridos
+ ### 1.8 Cambio de alcanse ocurridos
