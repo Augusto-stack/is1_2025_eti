@@ -61,8 +61,8 @@ Bueno la organizacion de nuestro equipo fue la siguiente con el fin de distribui
 
 - ***Encargados de la Documentacion y redaccion del mismo***: Delfino Juan y Cibils Mateo.
 
-- Codificacion con IA: Estanguet Juan Ignacio y Delfino Juan
+- ***Codificacion con IA***: Estanguet Juan Ignacio y Delfino Juan
 
-- Creacion del Diagrama de Clases del proyecto: Adorno Gabriela Soledad.
+- ***Creacion del Diagrama de Clases del proyecto***: Adorno Gabriela Soledad.
 
-- Creacion y manejo del repositorio, junto con el backlog: Ludeña Augusto.
+- ***Creacion y manejo del repositorio, junto con el backlog***: Ludeña Augusto.
