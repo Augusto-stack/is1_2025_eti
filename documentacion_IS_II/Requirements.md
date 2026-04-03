@@ -9,6 +9,8 @@
 ## 1. INTRODUCCION
 En el presente documento se explican y analizan los requerimientos del proyecto SIUA *(Sistema Integral Universitario Académico)*, desarrollado para la materia Ingeniería del Software II de la carrera de Analista en Computación.
 
+---
+
 ### 1.1 Propósito
 Este documento tiene como finalidad dar a conocer el funcionamiento general del proyecto SIUA *(Sistema Integral Universitario Académico)*, el cual representa la continuación del proyecto iniciado en la materia correlativa Ingeniería del Software I.
 
@@ -25,8 +27,6 @@ El sistema está dirigido principalmente a tres tipos de usuarios:
 - **Profesores**: Podrán gestionar las materias a su cargo (una o varias), visualizar los estudiantes inscriptos y administrar información académica como calificaciones, tareas y consultas de los alumnos.
 
 - **Alumnos**: Podrán inscribirse y darse de baja en materias, consultar notas, visualizar su información académica (promedio, historial de materias) y realizar consultas a los profesores.
-
----
 
 #### 1.4 Funcionalidades Principales
 
@@ -49,8 +49,6 @@ El sistema está dirigido principalmente a tres tipos de usuarios:
 - Generación y gestión de una base de datos adecuada.
 - Expiración automática de sesiones por inactividad.
 
----
-
 #### 1.5 Tecnologías Elegidas
 
 El proyecto será desarrollado principalmente utilizando el lenguaje **Java**, apoyándose en el framework **Spark Framework** para la construcción de la capa web.
@@ -62,8 +60,6 @@ En cuanto a la persistencia de datos, se utilizará una base de datos liviana **
 La seguridad de contraseñas será gestionada mediante el uso de **BCrypt**, mientras que la gestión de sesiones será manejada mediante los mecanismos provistos por **Spark Framework**.
 
 El código fuente será versionado utilizando **GitHub**, y la gestión del proyecto se realizará mediante **GitHub Projects**.
-
----
 
 #### 1.6 Restricciones Técnicas
 
@@ -82,13 +78,9 @@ El código fuente será versionado utilizando **GitHub**, y la gestión del proy
 - **Escalabilidad**: El sistema está orientado a entornos académicos de pequeña o mediana escala.
 - **Compatibilidad**: Accesible desde navegadores web modernos (Chrome, Firefox, Edge, entre otros).
 
----
-
 ### 1.7 Tamaño del equipo y Plazo estimado
 
 El equipo de desarrollo está conformado por **5 integrantes**, estimando un plazo de desarrollo de aproximadamente **2 meses**.
-
----
 
 ### 1.8 Cambios de alcance ocurridos
 
