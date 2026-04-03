@@ -485,7 +485,7 @@ public class App {
                 String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
                 req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
-                // --- NUEVO: Configuración de expiración de sesión según rol ---
+                // --- NUEVO: Configuración de expiración de sesión según rol --- (agregado Sol)
                 // Si el usuario NO es admin, se aplica expiración automática
                 if (userRole != null && !userRole.equals("admin")) {
                     // Tiempo en segundos (ej: 10 minutos = 600 segundos)
