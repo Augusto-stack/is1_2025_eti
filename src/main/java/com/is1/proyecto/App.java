@@ -489,7 +489,7 @@ public class App {
                 // Si el usuario NO es admin, se aplica expiración automática
                 if (userRole != null && !userRole.equals("admin")) {
                     // Tiempo en segundos (ej: 10 minutos = 600 segundos)
-                    req.session().maxInactiveInterval(600);
+                    req.session().maxInactiveInterval(600); //10 min de inactividad para usuario no admin
                     System.out.println("DEBUG: Sesión con expiración configurada para usuario no admin.");
                 } else {
                     // Para admin no se establece expiración (sesión sin límite de inactividad)
