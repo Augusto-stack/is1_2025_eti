@@ -38,43 +38,26 @@
 - Cada rol vea un dashboard distinto.
 - Generacion de una Base de Datos adecuada.
 
-#### 1.5 Restricciones Tecnicas y Tecnologias Elegidas.
+#### 1.5 Tecnologias Elegidas.
 
+El proyecto será desarrollado principalmente utilizando el lenguaje **Java**, apoyándose en el framework **Spark Framework** para la construcción de la capa web.
+Para la implementación de las vistas se empleará el motor de plantillas **Mustache**, permitiendo la generación dinámica de contenido HTML.
+En cuanto a la persistencia de datos, se utilizará una base de datos liviana **SQLite**, adecuada para entornos de desarrollo y pruebas. La interacción con la base de datos se gestionará mediante el framework **ActiveJDBC**, facilitando el acceso y manipulación de datos a través del patrón Active Record.
 
+#### 1.6 Restricciones Tecnicas
 
-### a) Problemas propuestos por nuestro equipo a resolver.
-
-- Poner un limite de intentos a 3 en el login de Usuario. (HECHO)
-- Colocar una via para recuperar contraseña.              (DUDA)
-- Nuevos roles: *alumno*, *profesor*, *admin*.              (HECHO)
-- Nueva entidad: **Asignatura** (nombre, profesor a cargo, calificacion, estudiantes inscriptos, cantidad estudiantes).
-- Filtros en la creacion de cuentas.
-- Cada rol vea un dashboard distinto.           
-
---- 
-
-### b) Usuarios y  Funcionalidades.
-
-Tendriamos 3 tipos de usuarios:
-
-- ***Alumnos*** : Las funcionalidades que van a tener son las de inscribirse a las materias, ver sus notas y sus materias disponibles.
-
-- ***Profesores*** : Sus funcionalidades serian ver las materias que tiene asignada, ver el listado de estudiantes inscriptos en cada una (si tiene mas de una materia asignada), cargar notas y modificarlas si se equivoca.
-
-- ***Administrador*** : El admin puede cargar/editar/eliminar cuentas(profesor estudiante), crear/editar/eliminar materias, asignar un *profesor* a una materia, reseteo de contraseñas.
-
-***Aclaracion: Se va a usar que el admin resete contraseñas porque es un proyecto universitario, a que utilizar un sistema de envio de emails como lo es normalmente.***
-
----
-
-### c) Restricciones Tecnicas y Tecnologias Elegidas.
-
-- El proyecto esta desarrollado en **Java** con **Spark Framework**.
-- Se utiliza como base de datos local **SQLite con ActiveJDBC** lo que limita que el proyecto escale pero es mas simple.
-- Las vistas estan hechas en **Mustache**, un motor de plantillas simple.
-- La seguridad de contraseñas se maneja con **BCrypt** y las sesiones son las propias de **Spark**.
-- La app va a correr localmente en el **puerto 8080**, sin despliegue en un servidor externo.
-- El codigo del proyecto se va a versionar y almacenar en **GitHub** y la gestion del proyecto con los intergrantes del grupo se lleva a cabo en **GitHub Proyects**.
+-**Lenguaje y Framework**: El sistema deberá ser desarrollado utilizando el lenguaje **Java** y el framework **Spark Framework**, limitando la elección de tecnologías backend a este entorno.
+- **Motor de Base de Datos**: Se utilizará **SQLite** como sistema de gestión de base de datos, lo cual implica restricciones en cuanto a concurrencia y escalabilidad en comparación con motores más robustos (como ser PostgreSQL o MySQL).
+- **Acceso a Datos**: La interacción con la base de datos deberá realizarse mediante el framework **ActiveJDBC**, siguiendo el patrón Active Record.
+- **Gestión de Concurrencia**: Debido a las limitaciones de SQLite, el sistema deberá restringir la cantidad de conexiones concurrentes para evitar bloqueos o degradación del rendimiento.
+- **Arquitectura Web**: El sistema deberá implementar una arquitectura basada en servidor web liviano, utilizando Spark, sin el uso de frameworks empresariales más pesados como Spring.
+- **Motor de Vistas**: Las vistas deberán desarrollarse utilizando **Mustache**, lo cual implica que la lógica de presentación debe mantenerse separada de la lógica de negocio.
+- **Limitaciones de Seguridad**:
+- Se deberá implementar un límite de intentos de login (máximo 3 intentos).
+- El sistema deberá contemplar un mecanismo de recuperación de contraseña.
+- **Despliegue**: El sistema deberá ser ejecutable en entornos locales sin requerir configuraciones complejas de infraestructura externa.
+- **Escalabilidad**: El sistema está orientado a un entorno académico de pequeña o mediana escala, por lo que no se contemplan soluciones distribuidas ni balanceo de carga en esta etapa.
+- **Compatibilidad**: El sistema deberá ser accesible mediante navegadores web modernos (Chrome, Firefox, Edge, entre otros).
 
 ---
 
