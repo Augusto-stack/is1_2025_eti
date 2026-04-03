@@ -21,6 +21,9 @@ import static spark.Spark.halt;
 import static spark.Spark.port;
 import static spark.Spark.post;
 import spark.template.mustache.MustacheTemplateEngine;
+import com.is1.proyecto.models.Materia;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Clase principal de la aplicación Spark. Configura las rutas, filtros y el
@@ -73,6 +76,29 @@ public class App {
                                 + "lastName TEXT NOT NULL,"
                                 + "dni INTEGER NOT NULL UNIQUE,"
                                 + "email TEXT NOT NULL UNIQUE"
+                                + ");");
+
+                // nuevo
+                Base.exec(
+                        "CREATE TABLE IF NOT EXISTS materias ("
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "nombre TEXT NOT NULL UNIQUE,"
+                                + "teacher_teorico_id INTEGER,"
+                                + "teacher_practico_id INTEGER,"
+                                + "FOREIGN KEY (teacher_teorico_id) REFERENCES teachers(id),"
+                                + "FOREIGN KEY (teacher_practico_id) REFERENCES teachers(id)"
+                                + ");");
+
+                // nuevo
+                // Tabla intermedia que relaciona alumno-materia (para inscripciones)
+                Base.exec(
+                        "CREATE TABLE IF NOT EXISTS inscripciones ("
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "user_id INTEGER NOT NULL,"
+                                + "materia_id INTEGER NOT NULL,"
+                                + "calificacion REAL DEFAULT NULL," // null = sin nota todavía
+                                + "FOREIGN KEY (user_id) REFERENCES users(id),"
+                                + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
                                 + ");");
 
                 // Crear usuario admin por defecto si no existe(VA A HABER SOLAMENTE 1)
@@ -150,7 +176,8 @@ public class App {
             if (currentUsername == null || loggedIn == null || !loggedIn) {
                 System.out.println("DEBUG: Acceso no autorizado a /dashboard. Redirigiendo a /login.");
                 // Redirige al login con un mensaje de error.
-                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+                res.redirect("/login?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta página.",
+                        StandardCharsets.UTF_8));
                 return null; // Importante retornar null después de una redirección.
             }
 
@@ -193,7 +220,8 @@ public class App {
             Map<String, Object> model = new HashMap<>();
             // (NUEVO)
             if (!esAdmin(req)) {
-                res.redirect("/login?error=No tenés permisos para acceder a esta página.");
+                res.redirect("/login?error="
+                        + URLEncoder.encode("No tenés permisos para acceder a esta página.", StandardCharsets.UTF_8));
                 return null;
             }
             // (NUEVO)
@@ -218,6 +246,129 @@ public class App {
         }, new MustacheTemplateEngine());
         // NUEVO...
 
+        // GET: Ver todas las materias
+        get("/admin/materias", (req, res) -> {
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return null;
+            }
+            Map<String, Object> model = new HashMap<>();
+
+            List<Map<String, Object>> listaMaterias = new ArrayList<>();
+            for (Materia m : Materia.findAll().<Materia>load()) {
+                Map<String, Object> mapa = new HashMap<>();
+                mapa.put("id", m.getId());
+                mapa.put("nombre", m.getString("nombre"));
+
+                // Profesor teórico
+                Object teoricoId = m.get("teacher_teorico_id");
+                if (teoricoId != null) {
+                    Teacher t = Teacher.findById(teoricoId);
+                    if (t != null)
+                        mapa.put("profesorTeorico", t.getString("name") + " " + t.getString("lastName"));
+                } else {
+                    mapa.put("profesorTeorico", "Sin asignar");
+                }
+
+                // Profesor práctico
+                Object practicoId = m.get("teacher_practico_id");
+                if (practicoId != null) {
+                    Teacher t = Teacher.findById(practicoId);
+                    if (t != null)
+                        mapa.put("profesorPractico", t.getString("name") + " " + t.getString("lastName"));
+                } else {
+                    mapa.put("profesorPractico", "Sin asignar");
+                }
+
+                // Cantidad de inscriptos
+                long cantidad = Base.count("inscripciones", "materia_id = ?", m.getId());
+                mapa.put("cantidadAlumnos", cantidad);
+
+                listaMaterias.add(mapa);
+            }
+
+            // Cargar profesores para los selectores
+            List<Map<String, Object>> listaProfesores = new ArrayList<>();
+            for (Teacher t : Teacher.findAll().<Teacher>load()) {
+                Map<String, Object> mapa = new HashMap<>();
+                mapa.put("id", t.getId());
+                mapa.put("nombreCompleto", t.getString("name") + " " + t.getString("lastName"));
+                listaProfesores.add(mapa);
+            }
+
+            model.put("materias", listaMaterias);
+            model.put("profesores", listaProfesores);
+
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty())
+                model.put("successMessage", successMessage);
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty())
+                model.put("errorMessage", errorMessage);
+
+            return new ModelAndView(model, "admin_materias.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Crear materia
+        post("/admin/materias/crear", (req, res) -> {
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return "";
+            }
+
+            String nombre = req.queryParams("nombre");
+            String teoricoIdStr = req.queryParams("teacher_teorico_id");
+            String practicoIdStr = req.queryParams("teacher_practico_id");
+
+            if (nombre == null || nombre.isEmpty()) {
+                res.redirect("/admin/materias?error=El nombre es requerido.");
+                return "";
+            }
+
+            Materia existe = Materia.findFirst("nombre = ?", nombre);
+            if (existe != null) {
+                res.redirect("/admin/materias?error=Ya existe una materia con ese nombre.");
+                return "";
+            }
+
+            Materia mat = new Materia();
+            mat.set("nombre", nombre);
+            if (teoricoIdStr != null && !teoricoIdStr.isEmpty()) {
+                mat.set("teacher_teorico_id", Integer.parseInt(teoricoIdStr));
+            }
+            if (practicoIdStr != null && !practicoIdStr.isEmpty()) {
+                mat.set("teacher_practico_id", Integer.parseInt(practicoIdStr));
+            }
+            mat.saveIt();
+
+            res.redirect("/admin/materias?message="
+                    + URLEncoder.encode("Materia '" + nombre + "' creada correctamente.", StandardCharsets.UTF_8));
+            return "";
+        });
+
+        // POST: Eliminar materia
+        post("/admin/materias/eliminar/:id", (req, res) -> {
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return "";
+            }
+
+            int id = Integer.parseInt(req.params(":id"));
+            Materia mat = Materia.findById(id);
+
+            if (mat == null) {
+                res.redirect("/admin/materias?error=Materia no encontrada.");
+                return "";
+            }
+
+            Base.exec("DELETE FROM inscripciones WHERE materia_id = ?", id);
+            mat.delete();
+
+            res.redirect("/admin/materias?message="
+                    + URLEncoder.encode("Materia eliminada correctamente.", StandardCharsets.UTF_8));
+            return "";
+        });
+
         // NUEVO...
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
@@ -241,7 +392,8 @@ public class App {
             u.set("loginAttempts", 0); // Resetea los intenos a 0
             u.saveIt();
 
-            res.redirect("/admin/usuarios?message=Usuario " + nombre + " desbloqueado exitosamente.");
+            res.redirect("/admin/usuarios?message="
+                    + URLEncoder.encode("Usuario " + nombre + " desbloqueado exitosamente.", StandardCharsets.UTF_8));
             return "";
         });
         // NUEVO...
@@ -268,6 +420,7 @@ public class App {
         // los query params
         // si se la usa como destino de redirecciones. (Tu código de /user/create ya lo
         // hace, aplicar similar).
+
         get("/", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
             String errorMessage = req.queryParams("error");
@@ -284,6 +437,7 @@ public class App {
         // GET: Ruta de alias para el formulario de creación de cuenta.
         // En una aplicación real, probablemente querrías unificar con '/user/create'
         // para evitar duplicidad.
+
         get("/user/new", (req, res) -> {
             return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el
                                                                             // formulario.
@@ -291,6 +445,7 @@ public class App {
 
         /// SECCION DE PROFESORES
         // GET para el manejo del envio de formulario de carga de profesor
+
         get("/cargarProfesor", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
 
@@ -308,6 +463,7 @@ public class App {
 
         // POST de los profesores, envia el formulario con el alta de los datos del
         // nuevo profesor
+
         post("/cargarProfesor", (req, res) -> {
 
             // obtengo datos
@@ -324,7 +480,8 @@ public class App {
                     || dniStr == null || dniStr.isEmpty()
                     || username == null || username.isEmpty() // ← nuevo
                     || password == null || password.isEmpty()) { // ← nuevo
-                res.redirect("/cargarProfesor?error=Todos los campos son requeridos.");
+                res.redirect("/cargarProfesor?error="
+                        + URLEncoder.encode("Todos los campos son requeridos.", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -334,7 +491,8 @@ public class App {
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
             if (dniExiste != null) {
                 res.status(409);
-                res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
+                res.redirect("/cargarProfesor?error=" + URLEncoder
+                        .encode("El dni del docente '" + dni + "' ya esta en uso.", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -343,14 +501,16 @@ public class App {
 
             if (emailExiste != null) {
                 res.status(409);
-                res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
+                res.redirect("/cargarProfesor?error=" + URLEncoder.encode(
+                        "El email del docente '" + email + "' ya esta en uso. Elige otro.", StandardCharsets.UTF_8));
                 return "";
             }
 
             // Verificar que no haya nombre de usuario igual en la BD (NUEVO)
             User usernameExiste = User.findFirst("name = ?", username);
             if (usernameExiste != null) {
-                res.redirect("/cargarProfesor?error=El nombre de usuario '" + username + "' ya está en uso.");
+                res.redirect("/cargarProfesor?error=" + URLEncoder
+                        .encode("El nombre de usuario '" + username + "' ya está en uso.", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -373,8 +533,9 @@ public class App {
                 nuevoUser.saveIt();
 
                 res.status(201);
-                res.redirect(
-                        "/cargarProfesor?message=El docente " + name + " " + lastname + " se ingreso correctamente!");
+                res.redirect("/cargarProfesor?message=" + URLEncoder.encode(
+                        "El docente " + name + " " + lastname + " se ingreso correctamente!", StandardCharsets.UTF_8));
+
                 return "";
 
             } catch (Exception e) {
@@ -413,7 +574,8 @@ public class App {
 
                 res.status(201); // Código de estado HTTP 201 (Created) para una creación exitosa.
                 // Redirige al formulario de creación con un mensaje de éxito.
-                res.redirect("/user/create?message=Cuenta creada exitosamente para " + name + "!");
+                res.redirect("/user/create?message="
+                        + URLEncoder.encode("Cuenta creada exitosamente para " + name + "!", StandardCharsets.UTF_8));
                 return ""; // Retorna una cadena vacía.
 
             } catch (Exception e) {
