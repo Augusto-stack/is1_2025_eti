@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Clasificación de Quejas - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-5xl mx-auto space-y-10">
+        
+        <div class="flex justify-between items-center bg-white p-6 rounded-xl shadow-md border-b-4 border-red-500">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Gestión de Reclamos</h1>
+                <p class="text-gray-500 text-sm italic">Panel de clasificación y resolución</p>
+            </div>
+            <a href="/dashboard" class="bg-gray-800 text-white px-5 py-2 rounded-lg hover:bg-black transition font-semibold">
+                ← Volver
+            </a>
+        </div>
+
+        <section>
+            <h2 class="text-xl font-bold text-red-600 mb-4 flex items-center">
+                <span class="flex h-3 w-3 rounded-full bg-red-500 mr-2 animate-ping"></span>
+                NUEVAS / PENDIENTES
+            </h2>
+            <div class="grid gap-4">
+                {{#quejas}}
+                    {{^esResuelta}} <div class="bg-white p-6 rounded-lg shadow-sm border-l-8 border-orange-500 flex justify-between items-center">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h3 class="font-bold text-xl text-gray-800">{{title}}</h3>
+                                    <span class="text-xs font-bold px-2 py-1 rounded bg-orange-100 text-orange-700 uppercase">{{status}}</span>
+                                </div>
+                                <p class="text-gray-600 mb-2 italic">"{{description}}"</p>
+                                <p class="text-xs text-gray-400 font-semibold">Alumno: {{alumno_nombre}}</p>
+                            </div>
+                            
+                            <div class="flex flex-col gap-2 ml-4">
+                                <form action="/admin/quejas/revisar/{{id}}" method="POST">
+                                    <button type="submit" class="w-32 bg-blue-600 text-white py-2 rounded shadow hover:bg-blue-700 transition font-bold text-xs uppercase">
+                                        En Revisión
+                                    </button>
+                                </form>
+                                <form action="/admin/quejas/resolver/{{id}}" method="POST">
+                                    <button type="submit" class="w-32 bg-green-600 text-white py-2 rounded shadow hover:bg-green-700 transition font-bold text-xs uppercase">
+                                        Resolver
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {{/esResuelta}}
+                {{/quejas}}
+                
+                {{^quejas}}
+                <p class="text-gray-400 italic text-center py-4">No hay quejas para clasificar.</p>
+                {{/quejas}}
+            </div>
+        </section>
+
+        <hr class="border-gray-300">
+
+        <section>
+            <h2 class="text-xl font-bold text-gray-500 mb-4 flex items-center">
+                <span class="h-3 w-3 rounded-full bg-gray-400 mr-2"></span>
+                ARCHIVADAS / RESUELTAS
+            </h2>
+            <div class="grid gap-4 opacity-70">
+                {{#quejas}}
+                    {{#esResuelta}} <div class="bg-gray-200 p-4 rounded-lg border border-gray-300 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-gray-700">{{title}}</h3>
+                                <p class="text-sm text-gray-500 italic">"{{description}}"</p>
+                                <p class="text-[10px] text-gray-400 mt-1 uppercase">Resuelto por Administración ✓</p>
+                            </div>
+                            <span class="bg-green-100 text-green-700 text-[10px] font-black px-3 py-1 rounded-full border border-green-300">
+                                FINALIZADA
+                            </span>
+                        </div>
+                    {{/esResuelta}}
+                {{/quejas}}
+            </div>
+        </section>
+    </div>
+</body>
+</html>

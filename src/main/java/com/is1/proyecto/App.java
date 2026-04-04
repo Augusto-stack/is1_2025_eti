@@ -78,7 +78,6 @@ public class App {
                                 + "email TEXT NOT NULL UNIQUE"
                                 + ");");
 
-                // nuevo
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS materias ("
                                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -89,7 +88,6 @@ public class App {
                                 + "FOREIGN KEY (teacher_practico_id) REFERENCES teachers(id)"
                                 + ");");
 
-                // nuevo
                 // Tabla intermedia que relaciona alumno-materia (para inscripciones)
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS inscripciones ("
@@ -100,6 +98,18 @@ public class App {
                                 + "FOREIGN KEY (user_id) REFERENCES users(id),"
                                 + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
                                 + ");");
+                
+                //Tabla de quejas recibidas de los alumnos
+                Base.exec(
+                        "CREATE TABLE IF NOT EXISTS complaints (" +
+                                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                "user_id INTEGER NOT NULL," + // Relación con el alumno
+                                "title TEXT NOT NULL," +
+                                "description TEXT NOT NULL," +
+                                "status TEXT DEFAULT 'PENDIENTE'," + // PENDIENTE, EN_REVISION, RESUELTA
+                                "created_at DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                                "FOREIGN KEY (user_id) REFERENCES users(id)" +
+                                ");");
 
                 // Crear usuario admin por defecto si no existe(VA A HABER SOLAMENTE 1)
                 User admin = User.findFirst("name = ?", "admin");
@@ -165,6 +175,17 @@ public class App {
         // Requiere que el usuario esté autenticado.
         get("/dashboard", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla del dashboard.
+
+
+            String successMsg = req.queryParams("message");
+            if (successMsg != null) {
+                model.put("message", successMsg); // 'message' debe coincidir con {{message}} en el mustache
+            }
+
+            String errorMsg = req.queryParams("error");
+            if (errorMsg != null) {
+                model.put("error", errorMsg);
+            }
 
             // Intenta obtener el nombre de usuario y la bandera de login de la sesión.
             String currentUsername = req.session().attribute("currentUserUsername");
@@ -461,6 +482,49 @@ public class App {
             return new ModelAndView(model, "teacher_formulario.mustache");
         }, new MustacheTemplateEngine());
 
+
+        // GET: Formulario para que el alumno redacte su queja
+        get("/alumno/queja", (req, res) -> {
+            if (!esAlumno(req)) {
+                res.redirect("/dashboard?error=Solo los alumnos pueden enviar quejas.");
+                return null;
+            }
+            Map<String, Object> model = new HashMap<>();
+            model.put("username", req.session().attribute("currentUserUsername"));
+            return new ModelAndView(model, "queja_form.mustache");
+        }, new MustacheTemplateEngine());
+
+        // GET: Vista para que el ADMIN vea todas las quejas enviadas por los alumnos
+        // --- ESTA ES LA ÚNICA QUE DEBE QUEDAR ---
+        get("/admin/quejas", (req, res) -> {
+            if (!esAdmin(req)) {
+                res.redirect("/dashboard?error=" + encode("No tenés permisos."));
+                return null;
+            }
+            Map<String, Object> model = new HashMap<>();
+            
+            // Capturamos el mensaje de la URL para que el Admin vea "Queja resuelta" arriba
+            String successMsg = req.queryParams("message");
+            if (successMsg != null) model.put("message", successMsg);
+
+            List<Map<String, Object>> listaQuejas = new ArrayList<>();
+            
+            // Traemos las quejas
+            List<Map> quejasRaw = Base.findAll("SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
+            
+            for (Map q : quejasRaw) {
+                Map<String, Object> quejaMap = new HashMap<>(q);
+                
+                // Esta es la lógica que separa las listas en el HTML
+                quejaMap.put("esResuelta", "RESUELTA".equals(q.get("status")));
+                
+                listaQuejas.add(quejaMap);
+            }
+            
+            model.put("quejas", listaQuejas);
+            // IMPORTANTE: Que el nombre termine en 's' (admin_quejas.mustache)
+            return new ModelAndView(model, "admin_quejas.mustache");
+        }, new MustacheTemplateEngine());
         // POST de los profesores, envia el formulario con el alta de los datos del
         // nuevo profesor
 
@@ -719,6 +783,86 @@ public class App {
                         .writeValueAsString(Map.of("error", "Error interno al registrar usuario: " + e.getMessage()));
             }
         });
+
+        // Procesar el envío de la queja
+        post("/alumno/queja", (req, res) -> {
+            // 1. Verificación de seguridad
+            if (!esAlumno(req)) {
+                res.status(403);
+                return "Acceso denegado";
+            }
+
+            // 2. Obtención de datos del formulario
+            String title = req.queryParams("title");
+            String description = req.queryParams("description");
+            Object userId = req.session().attribute("userId"); // Obtenemos el ID del alumno de la sesión
+
+            // 3. Validación de campos vacíos
+            if (title == null || title.isEmpty() || description == null || description.isEmpty()) {
+                res.redirect("/alumno/queja?error=" + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            try {
+                // 4. Inserción en la base de datos
+                // Usamos Base.exec directamente para asegurar que los datos entren correctamente
+                Base.exec("INSERT INTO complaints (user_id, title, description, status) VALUES (?, ?, ?, ?)", 
+                        userId, title, description, "PENDIENTE");
+
+                System.out.println("DEBUG: Queja enviada por el usuario ID: " + userId);
+                
+                res.redirect("/dashboard?message=" + URLEncoder.encode("Queja enviada correctamente.", StandardCharsets.UTF_8));
+                return "";
+            } catch (Exception e) {
+                System.err.println("Error al insertar queja: " + e.getMessage());
+                e.printStackTrace();
+                res.redirect("/alumno/queja?error=" + URLEncoder.encode("Error interno al procesar la queja.", StandardCharsets.UTF_8));
+                return "";
+            }
+        });
+
+        get("/admin/quejas", (req, res) -> {
+            if (!esAdmin(req)) {
+                res.redirect("/dashboard?error=" + encode("No tenés permisos."));
+                return null;
+            }
+            Map<String, Object> model = new HashMap<>();
+            
+            List<Map<String, Object>> listaQuejas = new ArrayList<>();
+            
+            // 1. Buscamos todas las quejas de la base de datos
+            List<Map> quejasRaw = Base.findAll("SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
+            
+            for (Map q : quejasRaw) {
+                // 2. Creamos un nuevo mapa para poder agregarle datos extra
+                Map<String, Object> quejaMap = new HashMap<>(q);
+                
+                // 3. AQUÍ VA EL AJUSTE LÓGICO:
+                // Creamos la "bandera" esResuelta que Mustache usará para filtrar
+                quejaMap.put("esResuelta", "RESUELTA".equals(q.get("status")));
+                
+                listaQuejas.add(quejaMap);
+            }
+            
+            model.put("quejas", listaQuejas);
+            return new ModelAndView(model, "admin_quejas.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Cambiar estado de la queja a EN_REVISION
+        post("/admin/quejas/revisar/:id", (req, res) -> {
+            if (!esAdmin(req)) return "";
+            Base.exec("UPDATE complaints SET status = 'EN_REVISION' WHERE id = ?", req.params(":id"));
+            res.redirect("/admin/quejas?message=" + encode("Queja puesta en revisión."));
+            return "";
+        });
+
+        // POST: Cambiar estado de la queja a RESUELTA
+        post("/admin/quejas/resolver/:id", (req, res) -> {
+            if (!esAdmin(req)) return "";
+            Base.exec("UPDATE complaints SET status = 'RESUELTA' WHERE id = ?", req.params(":id"));
+            res.redirect("/admin/quejas?message=" + encode("Queja marcada como resuelta."));
+            return "";
+        });
     } // Fin del método main
 
     // Creamos este metodo para ahorrarnos el verificar si es admin o no.
@@ -726,5 +870,18 @@ public class App {
         Boolean loggedIn = req.session().attribute("loggedIn");
         String role = req.session().attribute("userRole");
         return loggedIn != null && loggedIn && "admin".equals(role);
+    }
+
+    // Creamos este metodo para ahorrarnos el verificar si es alumno o no.
+    private static boolean esAlumno(spark.Request req) {
+        Boolean loggedIn = req.session().attribute("loggedIn");
+        String role = req.session().attribute("userRole");
+        return loggedIn != null && loggedIn && "alumno".equals(role);
+    }
+
+    // Método auxiliar para codificar mensajes en la URL y evitar errores de sintaxis
+    private static String encode(String msg) {
+        if (msg == null) return "";
+        return java.net.URLEncoder.encode(msg, java.nio.charset.StandardCharsets.UTF_8);
     }
 } // Fin de la clase App
