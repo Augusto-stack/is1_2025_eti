@@ -10,6 +10,7 @@ import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contrase
 
 import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.config.SessionManager; // para el helper de la expiracion de sesion
 import com.is1.proyecto.models.Teacher; // Para crear mapas de datos (modelos para las plantillas).
 import com.is1.proyecto.models.User; // Interfaz Map, utilizada para Map.of() o HashMap.
 
@@ -21,10 +22,22 @@ import static spark.Spark.halt;
 import static spark.Spark.port;
 import static spark.Spark.post;
 import spark.template.mustache.MustacheTemplateEngine;
+import com.is1.proyecto.models.Materia;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Clase principal de la aplicación Spark. Configura las rutas, filtros y el
  * inicio del servidor web.
+ * CAMBIOS RESPECTO A LA VERSIÓN ANTERIOR
+ * ───────────────────────────────────────
+ * 1. Se agrega SessionManager (config/SessionManager.java) que centraliza toda
+ *    la lógica de expiración de sesión.
+ * 2. El filtro `before` ya NO contiene lógica de expiración (estaba incompleto).
+ * 3. Cada ruta protegida llama a SessionManager.checkSession(req, res) al inicio.
+ * 4. El POST /login usa SessionManager.initSession(...) para crear la sesión de
+ *    forma estandarizada (incluyendo el timestamp de último acceso).
+ * 5. El admin NUNCA expira; alumnos y profesores expiran tras 10 min de inactividad. * 
  */
 public class App {
 
@@ -32,7 +45,6 @@ public class App {
     // serialización/deserialización JSON.
     // Se inicializa una sola vez para ser reutilizada en toda la aplicación.
     private static final ObjectMapper objectMapper = new ObjectMapper();
-
     /**
      * Método principal que se ejecuta al iniciar la aplicación. Aquí se
      * configuran todas las rutas y filtros de Spark.
@@ -75,6 +87,29 @@ public class App {
                                 + "email TEXT NOT NULL UNIQUE"
                                 + ");");
 
+                // nuevo
+                Base.exec(
+                        "CREATE TABLE IF NOT EXISTS materias ("
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "nombre TEXT NOT NULL UNIQUE,"
+                                + "teacher_teorico_id INTEGER,"
+                                + "teacher_practico_id INTEGER,"
+                                + "FOREIGN KEY (teacher_teorico_id) REFERENCES teachers(id),"
+                                + "FOREIGN KEY (teacher_practico_id) REFERENCES teachers(id)"
+                                + ");");
+
+                // nuevo
+                // Tabla intermedia que relaciona alumno-materia (para inscripciones)
+                Base.exec(
+                        "CREATE TABLE IF NOT EXISTS inscripciones ("
+                                + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                                + "user_id INTEGER NOT NULL,"
+                                + "materia_id INTEGER NOT NULL,"
+                                + "calificacion REAL DEFAULT NULL," // null = sin nota todavía
+                                + "FOREIGN KEY (user_id) REFERENCES users(id),"
+                                + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
+                                + ");");
+
                 // Crear usuario admin por defecto si no existe(VA A HABER SOLAMENTE 1)
                 User admin = User.findFirst("name = ?", "admin");
                 if (admin == null) {
@@ -110,27 +145,22 @@ public class App {
             }
         });
 
-        // --- Rutas GET para renderizar formularios y páginas HTML ---
+        // GET: renderiza formularios y páginas HTML ---
         // GET: Muestra el formulario de creación de cuenta.
-        // Soporta la visualización de mensajes de éxito o error pasados como query
-        // parameters.
+        // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
-
-            // Obtener y añadir mensaje de éxito de los query parameters (ej.
-            // ?message=Cuenta creada!)
+            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
             }
-
             // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos
             // vacíos)
             String errorMessage = req.queryParams("error");
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 model.put("errorMessage", errorMessage);
             }
-
             // Renderiza la plantilla 'user_form.mustache' con los datos del modelo.
             return new ModelAndView(model, "user_form.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
@@ -139,6 +169,10 @@ public class App {
         // Requiere que el usuario esté autenticado.
         get("/dashboard", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla del dashboard.
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            // Si no está logueado o la sesión expiró, SessionManager redirige al login.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // Intenta obtener el nombre de usuario y la bandera de login de la sesión.
             String currentUsername = req.session().attribute("currentUserUsername");
@@ -150,18 +184,16 @@ public class App {
             if (currentUsername == null || loggedIn == null || !loggedIn) {
                 System.out.println("DEBUG: Acceso no autorizado a /dashboard. Redirigiendo a /login.");
                 // Redirige al login con un mensaje de error.
-                res.redirect("/login?error=Debes iniciar sesión para acceder a esta página.");
+                res.redirect("/login?error=" + URLEncoder.encode("Debes iniciar sesión para acceder a esta página.",
+                        StandardCharsets.UTF_8));
                 return null; // Importante retornar null después de una redirección.
             }
 
-            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la
-            // plantilla.
+            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la plantilla.
             model.put("username", currentUsername);
 
             // NUEVO
-            // 3. Filtramos que tipo de rol tiene el usuario, para mostrar dashboard
-            // distintos
-            // si es un profesor, alumno o admin.
+            // 3. Filtramos que tipo de rol tiene el usuario, para mostrar dashboard distintos si es un profesor, alumno o admin.
             String userRole = req.session().attribute("userRole");
             model.put("role", userRole);
             model.put("isAdmin", userRole != null && userRole.equals("admin"));
@@ -191,9 +223,14 @@ public class App {
         // GET: Panel de admin para ver usuarios y desbloquear cuentas
         get("/admin/usuarios", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             // (NUEVO)
             if (!esAdmin(req)) {
-                res.redirect("/login?error=No tenés permisos para acceder a esta página.");
+                res.redirect("/login?error="
+                        + URLEncoder.encode("No tenés permisos para acceder a esta página.", StandardCharsets.UTF_8));
                 return null;
             }
             // (NUEVO)
@@ -218,9 +255,143 @@ public class App {
         }, new MustacheTemplateEngine());
         // NUEVO...
 
+        // GET: Ver todas las materias
+        get("/admin/materias", (req, res) -> {
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return null;
+            }
+            Map<String, Object> model = new HashMap<>();
+
+            List<Map<String, Object>> listaMaterias = new ArrayList<>();
+            for (Materia m : Materia.findAll().<Materia>load()) {
+                Map<String, Object> mapa = new HashMap<>();
+                mapa.put("id", m.getId());
+                mapa.put("nombre", m.getString("nombre"));
+
+                // Profesor teórico
+                Object teoricoId = m.get("teacher_teorico_id");
+                if (teoricoId != null) {
+                    Teacher t = Teacher.findById(teoricoId);
+                    if (t != null)
+                        mapa.put("profesorTeorico", t.getString("name") + " " + t.getString("lastName"));
+                } else {
+                    mapa.put("profesorTeorico", "Sin asignar");
+                }
+
+                // Profesor práctico
+                Object practicoId = m.get("teacher_practico_id");
+                if (practicoId != null) {
+                    Teacher t = Teacher.findById(practicoId);
+                    if (t != null)
+                        mapa.put("profesorPractico", t.getString("name") + " " + t.getString("lastName"));
+                } else {
+                    mapa.put("profesorPractico", "Sin asignar");
+                }
+
+                // Cantidad de inscriptos
+                long cantidad = Base.count("inscripciones", "materia_id = ?", m.getId());
+                mapa.put("cantidadAlumnos", cantidad);
+
+                listaMaterias.add(mapa);
+            }
+
+            // Cargar profesores para los selectores
+            List<Map<String, Object>> listaProfesores = new ArrayList<>();
+            for (Teacher t : Teacher.findAll().<Teacher>load()) {
+                Map<String, Object> mapa = new HashMap<>();
+                mapa.put("id", t.getId());
+                mapa.put("nombreCompleto", t.getString("name") + " " + t.getString("lastName"));
+                listaProfesores.add(mapa);
+            }
+
+            model.put("materias", listaMaterias);
+            model.put("profesores", listaProfesores);
+
+            String successMessage = req.queryParams("message");
+            if (successMessage != null && !successMessage.isEmpty())
+                model.put("successMessage", successMessage);
+            String errorMessage = req.queryParams("error");
+            if (errorMessage != null && !errorMessage.isEmpty())
+                model.put("errorMessage", errorMessage);
+
+            return new ModelAndView(model, "admin_materias.mustache");
+        }, new MustacheTemplateEngine());
+
+        // POST: Crear materia
+        post("/admin/materias/crear", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return "";
+            }
+
+            String nombre = req.queryParams("nombre");
+            String teoricoIdStr = req.queryParams("teacher_teorico_id");
+            String practicoIdStr = req.queryParams("teacher_practico_id");
+
+            if (nombre == null || nombre.isEmpty()) {
+                res.redirect("/admin/materias?error=El nombre es requerido.");
+                return "";
+            }
+
+            Materia existe = Materia.findFirst("nombre = ?", nombre);
+            if (existe != null) {
+                res.redirect("/admin/materias?error=Ya existe una materia con ese nombre.");
+                return "";
+            }
+
+            Materia mat = new Materia();
+            mat.set("nombre", nombre);
+            if (teoricoIdStr != null && !teoricoIdStr.isEmpty()) {
+                mat.set("teacher_teorico_id", Integer.parseInt(teoricoIdStr));
+            }
+            if (practicoIdStr != null && !practicoIdStr.isEmpty()) {
+                mat.set("teacher_practico_id", Integer.parseInt(practicoIdStr));
+            }
+            mat.saveIt();
+
+            res.redirect("/admin/materias?message="
+                    + URLEncoder.encode("Materia '" + nombre + "' creada correctamente.", StandardCharsets.UTF_8));
+            return "";
+        });
+
+        // POST: Eliminar materia
+        post("/admin/materias/eliminar/:id", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+            if (!esAdmin(req)) {
+                res.redirect("/login?error=No tenés permisos.");
+                return "";
+            }
+
+            int id = Integer.parseInt(req.params(":id"));
+            Materia mat = Materia.findById(id);
+
+            if (mat == null) {
+                res.redirect("/admin/materias?error=Materia no encontrada.");
+                return "";
+            }
+
+            Base.exec("DELETE FROM inscripciones WHERE materia_id = ?", id);
+            mat.delete();
+
+            res.redirect("/admin/materias?message="
+                    + URLEncoder.encode("Materia eliminada correctamente.", StandardCharsets.UTF_8));
+            return "";
+        });
+
         // NUEVO...
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // Lo colocamos por si alguien supiera la URL para desbloquear usuarios.
             if (!esAdmin(req)) {
@@ -241,7 +412,8 @@ public class App {
             u.set("loginAttempts", 0); // Resetea los intenos a 0
             u.saveIt();
 
-            res.redirect("/admin/usuarios?message=Usuario " + nombre + " desbloqueado exitosamente.");
+            res.redirect("/admin/usuarios?message="
+                    + URLEncoder.encode("Usuario " + nombre + " desbloqueado exitosamente.", StandardCharsets.UTF_8));
             return "";
         });
         // NUEVO...
@@ -268,6 +440,7 @@ public class App {
         // los query params
         // si se la usa como destino de redirecciones. (Tu código de /user/create ya lo
         // hace, aplicar similar).
+
         get("/", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
             String errorMessage = req.queryParams("error");
@@ -284,6 +457,7 @@ public class App {
         // GET: Ruta de alias para el formulario de creación de cuenta.
         // En una aplicación real, probablemente querrías unificar con '/user/create'
         // para evitar duplicidad.
+
         get("/user/new", (req, res) -> {
             return new ModelAndView(new HashMap<>(), "user_form.mustache"); // No pasa un modelo específico, solo el
                                                                             // formulario.
@@ -291,7 +465,11 @@ public class App {
 
         /// SECCION DE PROFESORES
         // GET para el manejo del envio de formulario de carga de profesor
+
         get("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             Map<String, Object> model = new HashMap<>();
 
             String errorMessage = req.queryParams("error");
@@ -308,7 +486,10 @@ public class App {
 
         // POST de los profesores, envia el formulario con el alta de los datos del
         // nuevo profesor
+
         post("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // obtengo datos
             String name = req.queryParams("name");
@@ -324,17 +505,19 @@ public class App {
                     || dniStr == null || dniStr.isEmpty()
                     || username == null || username.isEmpty() // ← nuevo
                     || password == null || password.isEmpty()) { // ← nuevo
-                res.redirect("/cargarProfesor?error=Todos los campos son requeridos.");
+                res.redirect("/cargarProfesor?error="
+                        + URLEncoder.encode("Todos los campos son requeridos.", StandardCharsets.UTF_8));
                 return "";
             }
 
             int dni = Integer.parseInt(dniStr);
 
-            // compruebo el dni, su existencia
+            // compruebo existencia de dni
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
             if (dniExiste != null) {
                 res.status(409);
-                res.redirect("/cargarProfesor?error=El dni del docente '" + dni + "' ya esta en uso.");
+                res.redirect("/cargarProfesor?error=" + URLEncoder
+                        .encode("El dni del docente '" + dni + "' ya esta en uso.", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -343,14 +526,16 @@ public class App {
 
             if (emailExiste != null) {
                 res.status(409);
-                res.redirect("/cargarProfesor?error=El email del docente '" + email + "' ya esta en uso. Elige otro");
+                res.redirect("/cargarProfesor?error=" + URLEncoder.encode(
+                        "El email del docente '" + email + "' ya esta en uso. Elige otro.", StandardCharsets.UTF_8));
                 return "";
             }
 
             // Verificar que no haya nombre de usuario igual en la BD (NUEVO)
             User usernameExiste = User.findFirst("name = ?", username);
             if (usernameExiste != null) {
-                res.redirect("/cargarProfesor?error=El nombre de usuario '" + username + "' ya está en uso.");
+                res.redirect("/cargarProfesor?error=" + URLEncoder
+                        .encode("El nombre de usuario '" + username + "' ya está en uso.", StandardCharsets.UTF_8));
                 return "";
             }
 
@@ -373,8 +558,9 @@ public class App {
                 nuevoUser.saveIt();
 
                 res.status(201);
-                res.redirect(
-                        "/cargarProfesor?message=El docente " + name + " " + lastname + " se ingreso correctamente!");
+                res.redirect("/cargarProfesor?message=" + URLEncoder.encode(
+                        "El docente " + name + " " + lastname + " se ingreso correctamente!", StandardCharsets.UTF_8));
+
                 return "";
 
             } catch (Exception e) {
@@ -384,7 +570,6 @@ public class App {
                 res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
                 return "";
             }
-
         });
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
@@ -413,7 +598,8 @@ public class App {
 
                 res.status(201); // Código de estado HTTP 201 (Created) para una creación exitosa.
                 // Redirige al formulario de creación con un mensaje de éxito.
-                res.redirect("/user/create?message=Cuenta creada exitosamente para " + name + "!");
+                res.redirect("/user/create?message="
+                        + URLEncoder.encode("Cuenta creada exitosamente para " + name + "!", StandardCharsets.UTF_8));
                 return ""; // Retorna una cadena vacía.
 
             } catch (Exception e) {
@@ -435,8 +621,7 @@ public class App {
             String username = req.queryParams("username");
             String plainTextPassword = req.queryParams("password");
 
-            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o
-            // vacíos.
+            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o vacíos.
             if (username == null || username.isEmpty() || plainTextPassword == null || plainTextPassword.isEmpty()) {
                 res.status(400); // Bad Request.
                 model.put("errorMessage", "El nombre de usuario y la contraseña son requeridos.");
@@ -485,17 +670,9 @@ public class App {
                 String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
                 req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
-                // --- NUEVO: Configuración de expiración de sesión según rol --- (agregado Sol)
-                // Si el usuario NO es admin, se aplica expiración automática
-                if (userRole != null && !userRole.equals("admin")) {
-                    // Tiempo en segundos (ej: 10 minutos = 600 segundos)
-                    req.session().maxInactiveInterval(600); //10 min de inactividad para usuario no admin
-                    System.out.println("DEBUG: Sesión con expiración configurada para usuario no admin.");
-                } else {
-                    // Para admin no se establece expiración (sesión sin límite de inactividad)
-                    // Opcionalmente se puede poner un valor muy alto, pero por defecto no es necesario
-                    System.out.println("DEBUG: Sesión sin expiración para usuario admin.");
-                }
+                // NUEVO 4/4: Inicializar sesión a través de SessionManager.
+                // Guarda todos los atributos de sesión y el timestamp de último acceso.
+                SessionManager.initSession(req, username, ac.getId(), userRole);
 
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
