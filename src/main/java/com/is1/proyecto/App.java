@@ -653,6 +653,25 @@ public class App {
                 model.put("username", username); // Añade el nombre de usuario al modelo para el dashboard.
                 // Renderiza la plantilla del dashboard tras un login exitoso.
                 res.redirect("/dashboard");
+                
+                // --- NUEVO: Configuración de expiración de sesión según rol --- -Sol-
+                // Si el usuario NO es admin, se aplica expiración automática
+                if (userRole != null && !userRole.equals("admin")) {
+                    Long lastAccess = req.session().attribute("lastAccessTime");
+
+                    if (lastAccess != null) {
+                        long ahora = System.currentTimeMillis();
+                        long diferencia = (ahora - lastAccess) / 1000; // en segundos
+                        if (diferencia > 600) { // osea 10 minutos
+                            req.session().invalidate();
+                            res.redirect("/login?error=Sesión expirada por inactividad.");
+                            halt();
+                        }
+                    }
+                    // actualizar última actividad SIEMPRE que hay request
+                    req.session().attribute("lastAccessTime", System.currentTimeMillis());
+                    };
+
                 return null;
             } else {
                 // Sumar 1 al contador de intentos fallidos NUEVO

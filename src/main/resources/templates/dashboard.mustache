@@ -6,7 +6,53 @@
     <title>Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<script>
+    {{#sessionExpira}}
+        let tiempoRestante = {{sessionTiempoSegundos}}; // viene del backend
+
+        function actualizarContador() {
+            let minutos = Math.floor(tiempoRestante / 60);
+            let segundos = tiempoRestante % 60;
+
+            document.getElementById("contadorSesion").innerText =
+                `${minutos}:${segundos.toString().padStart(2, '0')}`;
+
+            if (tiempoRestante <= 0) {
+                window.location.href = "/login?error=Sesión expirada";
+            }
+
+            tiempoRestante--;
+        }
+        // actualiza cada segundo
+        setInterval(actualizarContador, 1000);
+
+        // ejecutar inmediatamente
+        actualizarContador();
+
+        // --- NUEVO: detectar actividad del usuario ---
+        function resetearContador() {
+            tiempoRestante = {{sessionTiempoSegundos}};
+        }
+
+        // eventos que reinician el contador
+        document.addEventListener("click", resetearContador);
+        document.addEventListener("keypress", resetearContador);
+        document.addEventListener("mousemove", resetearContador);
+    {{/sessionExpira}}
+</script>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    {{#sessionExpira}}
+    <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+        ⏳ Tu sesión expira en: 
+        <span id="contadorSesion" class="font-bold">10:00</span>
+    </div>
+    {{/sessionExpira}}
+
+    {{^sessionExpira}}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+        ✔️ Sesión sin expiración (Administrador)
+    </div>
+    {{/sessionExpira}}
     <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
         {{#isAdmin}}
         <span class="absolute top-4 right-4 bg-red-100 text-red-700 text-sm font-semibold px-3 py-1 rounded-full">Admin</span>
