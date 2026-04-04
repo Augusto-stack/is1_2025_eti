@@ -6,7 +6,9 @@
     <title>Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <script>
+    // Agregado de expiracion de tiempo
     {{#sessionExpira}}
         let tiempoRestante = {{sessionTiempoSegundos}}; // viene del backend
 
@@ -20,7 +22,6 @@
             if (tiempoRestante <= 0) {
                 window.location.href = "/login?error=Sesión expirada";
             }
-
             tiempoRestante--;
         }
         // actualiza cada segundo

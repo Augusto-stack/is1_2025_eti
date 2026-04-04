@@ -10,6 +10,7 @@ import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contrase
 
 import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.config.SessionManager; // para el helper de la expiracion de sesion
 import com.is1.proyecto.models.Teacher; // Para crear mapas de datos (modelos para las plantillas).
 import com.is1.proyecto.models.User; // Interfaz Map, utilizada para Map.of() o HashMap.
 
@@ -28,6 +29,15 @@ import java.nio.charset.StandardCharsets;
 /**
  * Clase principal de la aplicación Spark. Configura las rutas, filtros y el
  * inicio del servidor web.
+ * CAMBIOS RESPECTO A LA VERSIÓN ANTERIOR
+ * ───────────────────────────────────────
+ * 1. Se agrega SessionManager (config/SessionManager.java) que centraliza toda
+ *    la lógica de expiración de sesión.
+ * 2. El filtro `before` ya NO contiene lógica de expiración (estaba incompleto).
+ * 3. Cada ruta protegida llama a SessionManager.checkSession(req, res) al inicio.
+ * 4. El POST /login usa SessionManager.initSession(...) para crear la sesión de
+ *    forma estandarizada (incluyendo el timestamp de último acceso).
+ * 5. El admin NUNCA expira; alumnos y profesores expiran tras 10 min de inactividad. * 
  */
 public class App {
 
@@ -35,7 +45,6 @@ public class App {
     // serialización/deserialización JSON.
     // Se inicializa una sola vez para ser reutilizada en toda la aplicación.
     private static final ObjectMapper objectMapper = new ObjectMapper();
-
     /**
      * Método principal que se ejecuta al iniciar la aplicación. Aquí se
      * configuran todas las rutas y filtros de Spark.
@@ -136,27 +145,22 @@ public class App {
             }
         });
 
-        // --- Rutas GET para renderizar formularios y páginas HTML ---
+        // GET: renderiza formularios y páginas HTML ---
         // GET: Muestra el formulario de creación de cuenta.
-        // Soporta la visualización de mensajes de éxito o error pasados como query
-        // parameters.
+        // Soporta la visualización de mensajes de éxito o error pasados como query parameters.
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
-
-            // Obtener y añadir mensaje de éxito de los query parameters (ej.
-            // ?message=Cuenta creada!)
+            // Obtener y añadir mensaje de éxito de los query parameters (ej. ?message=Cuenta creada!)
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
             }
-
             // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos
             // vacíos)
             String errorMessage = req.queryParams("error");
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 model.put("errorMessage", errorMessage);
             }
-
             // Renderiza la plantilla 'user_form.mustache' con los datos del modelo.
             return new ModelAndView(model, "user_form.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
@@ -165,6 +169,10 @@ public class App {
         // Requiere que el usuario esté autenticado.
         get("/dashboard", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla del dashboard.
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            // Si no está logueado o la sesión expiró, SessionManager redirige al login.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // Intenta obtener el nombre de usuario y la bandera de login de la sesión.
             String currentUsername = req.session().attribute("currentUserUsername");
@@ -181,14 +189,11 @@ public class App {
                 return null; // Importante retornar null después de una redirección.
             }
 
-            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la
-            // plantilla.
+            // 2. Si el usuario está logueado, añade el nombre de usuario al modelo para la plantilla.
             model.put("username", currentUsername);
 
             // NUEVO
-            // 3. Filtramos que tipo de rol tiene el usuario, para mostrar dashboard
-            // distintos
-            // si es un profesor, alumno o admin.
+            // 3. Filtramos que tipo de rol tiene el usuario, para mostrar dashboard distintos si es un profesor, alumno o admin.
             String userRole = req.session().attribute("userRole");
             model.put("role", userRole);
             model.put("isAdmin", userRole != null && userRole.equals("admin"));
@@ -218,6 +223,10 @@ public class App {
         // GET: Panel de admin para ver usuarios y desbloquear cuentas
         get("/admin/usuarios", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             // (NUEVO)
             if (!esAdmin(req)) {
                 res.redirect("/login?error="
@@ -248,6 +257,10 @@ public class App {
 
         // GET: Ver todas las materias
         get("/admin/materias", (req, res) -> {
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return null;
@@ -311,6 +324,9 @@ public class App {
 
         // POST: Crear materia
         post("/admin/materias/crear", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return "";
@@ -348,6 +364,8 @@ public class App {
 
         // POST: Eliminar materia
         post("/admin/materias/eliminar/:id", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return "";
@@ -372,6 +390,8 @@ public class App {
         // NUEVO...
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // Lo colocamos por si alguien supiera la URL para desbloquear usuarios.
             if (!esAdmin(req)) {
@@ -447,6 +467,9 @@ public class App {
         // GET para el manejo del envio de formulario de carga de profesor
 
         get("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
+
             Map<String, Object> model = new HashMap<>();
 
             String errorMessage = req.queryParams("error");
@@ -465,6 +488,8 @@ public class App {
         // nuevo profesor
 
         post("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res)) return null;
 
             // obtengo datos
             String name = req.queryParams("name");
@@ -487,7 +512,7 @@ public class App {
 
             int dni = Integer.parseInt(dniStr);
 
-            // compruebo el dni, su existencia
+            // compruebo existencia de dni
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
             if (dniExiste != null) {
                 res.status(409);
@@ -545,7 +570,6 @@ public class App {
                 res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
                 return "";
             }
-
         });
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
@@ -597,8 +621,7 @@ public class App {
             String username = req.queryParams("username");
             String plainTextPassword = req.queryParams("password");
 
-            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o
-            // vacíos.
+            // Validaciones básicas: campos de usuario y contraseña no pueden ser nulos o vacíos.
             if (username == null || username.isEmpty() || plainTextPassword == null || plainTextPassword.isEmpty()) {
                 res.status(400); // Bad Request.
                 model.put("errorMessage", "El nombre de usuario y la contraseña son requeridos.");
@@ -647,31 +670,16 @@ public class App {
                 String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
                 req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
+                // NUEVO 4/4: Inicializar sesión a través de SessionManager.
+                // Guarda todos los atributos de sesión y el timestamp de último acceso.
+                SessionManager.initSession(req, username, ac.getId(), userRole);
+
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
 
                 model.put("username", username); // Añade el nombre de usuario al modelo para el dashboard.
                 // Renderiza la plantilla del dashboard tras un login exitoso.
                 res.redirect("/dashboard");
-                
-                // --- NUEVO: Configuración de expiración de sesión según rol --- -Sol-
-                // Si el usuario NO es admin, se aplica expiración automática
-                if (userRole != null && !userRole.equals("admin")) {
-                    Long lastAccess = req.session().attribute("lastAccessTime");
-
-                    if (lastAccess != null) {
-                        long ahora = System.currentTimeMillis();
-                        long diferencia = (ahora - lastAccess) / 1000; // en segundos
-                        if (diferencia > 600) { // osea 10 minutos
-                            req.session().invalidate();
-                            res.redirect("/login?error=Sesión expirada por inactividad.");
-                            halt();
-                        }
-                    }
-                    // actualizar última actividad SIEMPRE que hay request
-                    req.session().attribute("lastAccessTime", System.currentTimeMillis());
-                    };
-
                 return null;
             } else {
                 // Sumar 1 al contador de intentos fallidos NUEVO
