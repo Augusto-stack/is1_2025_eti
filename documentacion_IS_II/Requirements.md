@@ -6,63 +6,89 @@
 
 # Guia de Trabajo Practico
 
-## 1. (Requirements) Describir su proyecto:
-
-Sistema de Gestión Académica es una aplicación web desarrollada en Java con Spark Framework que permite administrar usuarios, materias y calificaciones en un entorno universitario. El sistema cuenta con tres roles diferenciados: ***administrador***, ***profesor*** y ***alumno***, cada uno con su propio panel de control y funcionalidades específicas.
-
-### a) Problemas propuestos por nuestro equipo a resolver.
-
-- Poner un limite de intentos a 3 en el login de Usuario.
-- Sistema de quejas de alumnos.
-- Nuevos roles: *alumno*, *profesor*, *admin*.
-- Nueva entidad: **Materia** (nombre, profesor a cargo, calificacion, estudiantes inscriptos, cantidad estudiantes).
-- Filtros en la creacion de cuentas.
-- Cada rol vea un dashboard distinto.           
-- Tiempo de sesión con expiración automática.
-
---- 
-
-### b) Usuarios y  Funcionalidades.
-
-Tendriamos 3 tipos de usuarios:
-
-- ***Alumnos*** : Las funcionalidades que van a tener son las de inscribirse a las materias, ver sus notas y sus materias disponibles, ver su promedio general calculado automáticamente, ver el historial completo de materias aprobadas, desaprobadas, en curso, ver su legajo o información personal, mandar una consulta al profesor.
-
-- ***Profesores*** : Sus funcionalidades serian ver las materias que tiene asignada, ver el listado de estudiantes inscriptos en cada una (si tiene mas de una materia asignada), cargar notas y modificarlas si se equivoca, ver estadísticas de su materia (promedio de notas, cantidad de aprobados/desaprobados/en curso), recibir consultas de los alumnos.
-
-- ***Administrador*** : El administrador puede crear y gestionar cuentas de profesores y alumnos, administrar las materias del sistema, asignar docentes a las mismas y gestionar el acceso de los usuarios, incluyendo el desbloqueo de cuentas y el reseteo de contraseñas.
-
-***Aclaracion: Se va a usar que el admin resete contraseñas porque es un proyecto universitario, a que utilizar un sistema de envio de emails como lo es normalmente.***
+## 1. INTRODUCCION
+En el presente documento se explican y analizan los requerimientos del proyecto SIUA *(Sistema Integral Universitario Académico)*, desarrollado para la materia Ingeniería del Software II de la carrera de Analista en Computación.
 
 ---
 
-### c) Restricciones Tecnicas y Tecnologias Elegidas.
+### 1.1 Propósito
+Este documento tiene como finalidad dar a conocer el funcionamiento general del proyecto SIUA *(Sistema Integral Universitario Académico)*, el cual representa la continuación del proyecto iniciado en la materia correlativa Ingeniería del Software I.
 
-- El proyecto esta desarrollado en **Java** con **Spark Framework**.
-- Se utiliza como base de datos local **SQLite con ActiveJDBC** lo que limita que el proyecto escale pero es mas simple.
-- Las vistas estan hechas en **Mustache**, un motor de plantillas simple.
-- La seguridad de contraseñas se maneja con **BCrypt** y las sesiones son las propias de **Spark**.
-- La app va a correr localmente en el **puerto 8080**, sin despliegue en un servidor externo.
-- El codigo del proyecto se va a versionar y almacenar en **GitHub** y la gestion del proyecto con los intergrantes del grupo se lleva a cabo en **GitHub Proyects**.
+#### 1.2 Contexto del Sistema
+- **Nombre del Sistema**: SIUA *(Sistema Integral Universitario Académico)*.  
+- El sistema está destinado a la gestión de procesos administrativos y académicos de una institución educativa. Permitirá el alta, baja y modificación de profesores, alumnos y personal administrativo (con rol de administrador), así como también la gestión de materias de distintas carreras.
+- El principal beneficiario del sistema serán las instituciones educativas que lo implementen. El objetivo es sistematizar y optimizar los procesos administrativos y académicos en términos de tiempo y recursos.
 
----
+#### 1.3 Usuarios a los que está dirigido
+El sistema está dirigido principalmente a tres tipos de usuarios:
 
-### d) Tamaño del equipo y Plazo estimado
+- **Administrador**: Personal administrativo encargado de gestionar cuentas de profesores y alumnos (alta, baja y modificación), administrar materias, asignar docentes y coordinar su relación con carreras o áreas. También será responsable del reseteo de contraseñas en caso de inconvenientes.
 
- El tamaño de nuestro equipo va a ser de 5 personas y el plazo que creemos que nos va a llevar van a ser 2 meses.
+- **Profesores**: Podrán gestionar las materias a su cargo (una o varias), visualizar los estudiantes inscriptos y administrar información académica como calificaciones, tareas y consultas de los alumnos.
 
-### e) Problemas encontrados
+- **Alumnos**: Podrán inscribirse y darse de baja en materias, consultar notas, visualizar su información académica (promedio, historial de materias) y realizar consultas a los profesores.
 
-Habiamos encontrado un problema en la recuperacion de contraseña, queriamos hacerla como suele hacerse normalmente que nos llegue un mail para restablecer la contraseña pero al ver que era muy complicado, decidimos hacer que el admin desbloquee a un usuario atraves de un boton para fines practico.
+#### 1.4 Funcionalidades Principales
 
-### f) Forma de organización del equipo
+- Gestión de usuarios administrativos (alta, modificación y baja).
+- Gestión de usuarios profesores (alta, modificación y baja).
+- Gestión de usuarios estudiantes (alta, modificación y baja).
+- Límite de intentos de login (máximo 3 intentos).
+- Sistema de recuperación de contraseñas mediante intervención del administrador.
+- Implementación de roles diferenciados (*alumno*, *profesor*, *administrador*).
+- Gestión de materias (alta, modificación y baja), incluyendo:
+  - Nombre y código
+  - Profesor responsable
+  - Estudiantes inscriptos
+  - Calificaciones
+- Filtros en la creación de cuentas.
+- Paneles (dashboards) diferenciados según el rol del usuario.
+- Sistema de consultas o quejas de alumnos hacia profesores.
+- Cálculo automático del promedio del alumno.
+- Visualización del historial académico del alumno.
+- Generación y gestión de una base de datos adecuada.
+- Expiración automática de sesiones por inactividad.
 
-Bueno la organizacion de nuestro equipo fue la siguiente con el fin de distribuir las tareas y avanzar lo mas rapidos y seguros posible:
+#### 1.5 Tecnologías Elegidas
 
-- ***Encargados de la Documentacion y redaccion del mismo***: Delfino Juan y Cibils Mateo.
+El proyecto será desarrollado principalmente utilizando el lenguaje **Java**, apoyándose en el framework **Spark Framework** para la construcción de la capa web.
 
-- ***Codificacion con IA***: Estanguet Juan Ignacio y Delfino Juan
+Para la implementación de las vistas se empleará el motor de plantillas **Mustache**, permitiendo la generación dinámica de contenido HTML.
 
-- ***Creacion del Diagrama de Clases del proyecto***: Adorno Gabriela Soledad.
+En cuanto a la persistencia de datos, se utilizará una base de datos liviana **SQLite**, adecuada para entornos de desarrollo y pruebas. La interacción con la base de datos se gestionará mediante el framework **ActiveJDBC**, facilitando el acceso y manipulación de datos a través del patrón Active Record.
 
-- ***Creacion y manejo del repositorio, junto con el backlog***: Ludeña Augusto.
+La seguridad de contraseñas será gestionada mediante el uso de **BCrypt**, mientras que la gestión de sesiones será manejada mediante los mecanismos provistos por **Spark Framework**.
+
+El código fuente será versionado utilizando **GitHub**, y la gestión del proyecto se realizará mediante **GitHub Projects**.
+
+#### 1.6 Restricciones Técnicas
+
+- **Lenguaje y Framework**: El sistema deberá desarrollarse utilizando **Java** y **Spark Framework**, limitando el uso de otras tecnologías backend.
+- **Motor de Base de Datos**: Se utilizará **SQLite**, lo cual implica limitaciones en concurrencia y escalabilidad.
+- **Acceso a Datos**: Se utilizará **ActiveJDBC** siguiendo el patrón Active Record.
+- **Gestión de Concurrencia**: Se deberá limitar la cantidad de conexiones simultáneas para evitar bloqueos en la base de datos.
+- **Arquitectura Web**: Se utilizará un servidor web liviano basado en Spark, sin frameworks empresariales como Spring.
+- **Motor de Vistas**: Se utilizará **Mustache**, manteniendo separación entre lógica de negocio y presentación.
+- **Seguridad**:
+  - Límite de intentos de login (máximo 3).
+  - Reseteo de contraseñas gestionado por el administrador.
+  - Uso de **BCrypt** para almacenamiento seguro de contraseñas.
+- **Sesiones**: Implementación de expiración automática por inactividad.
+- **Despliegue**: El sistema se ejecutará en entorno local (puerto 8080), sin despliegue en servidores externos.
+- **Escalabilidad**: El sistema está orientado a entornos académicos de pequeña o mediana escala.
+- **Compatibilidad**: Accesible desde navegadores web modernos (Chrome, Firefox, Edge, entre otros).
+
+### 1.7 Tamaño del equipo y Plazo estimado
+
+El equipo de desarrollo está conformado por **5 integrantes**, estimando un plazo de desarrollo de aproximadamente **2 meses**.
+
+### 1.8 Cambios de alcance ocurridos
+
+Durante el desarrollo del proyecto se identificaron cambios en el alcance inicial:
+
+- Se descartó la implementación de recuperación de contraseña mediante envío de correo electrónico debido a su complejidad técnica.
+- En su lugar, se optó por un mecanismo en el cual el **administrador puede resetear contraseñas manualmente**.
+- Se incorporaron nuevas funcionalidades como:
+  - Sistema de consultas de alumnos a profesores.
+  - Expiración automática de sesiones.
+  - Estadísticas académicas para profesores.

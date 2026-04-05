@@ -10,6 +10,7 @@ import org.mindrot.jbcrypt.BCrypt; // Utilidad para hashear y verificar contrase
 
 import com.fasterxml.jackson.databind.ObjectMapper; // Representa un modelo de datos y el nombre de la vista a renderizar.
 import com.is1.proyecto.config.DBConfigSingleton; // Motor de plantillas Mustache para Spark.
+import com.is1.proyecto.config.SessionManager; // para el helper de la expiracion de sesion
 import com.is1.proyecto.models.Teacher; // Para crear mapas de datos (modelos para las plantillas).
 import com.is1.proyecto.models.User; // Interfaz Map, utilizada para Map.of() o HashMap.
 
@@ -28,6 +29,18 @@ import java.nio.charset.StandardCharsets;
 /**
  * Clase principal de la aplicación Spark. Configura las rutas, filtros y el
  * inicio del servidor web.
+ * CAMBIOS RESPECTO A LA VERSIÓN ANTERIOR
+ * ───────────────────────────────────────
+ * 1. Se agrega SessionManager (config/SessionManager.java) que centraliza toda
+ * la lógica de expiración de sesión.
+ * 2. El filtro `before` ya NO contiene lógica de expiración (estaba
+ * incompleto).
+ * 3. Cada ruta protegida llama a SessionManager.checkSession(req, res) al
+ * inicio.
+ * 4. El POST /login usa SessionManager.initSession(...) para crear la sesión de
+ * forma estandarizada (incluyendo el timestamp de último acceso).
+ * 5. El admin NUNCA expira; alumnos y profesores expiran tras 10 min de
+ * inactividad. *
  */
 public class App {
 
@@ -106,8 +119,8 @@ public class App {
                                 + "FOREIGN KEY (user_id) REFERENCES users(id),"
                                 + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
                                 + ");");
-                
-                //Tabla de quejas recibidas de los alumnos
+
+                // Tabla de quejas recibidas de los alumnos
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS complaints (" +
                                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -154,46 +167,39 @@ public class App {
             }
         });
 
-        // --- Rutas GET para renderizar formularios y páginas HTML ---
+        // GET: renderiza formularios y páginas HTML ---
         // GET: Muestra el formulario de creación de cuenta.
         // Soporta la visualización de mensajes de éxito o error pasados como query
         // parameters.
         get("/user/create", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Crea un mapa para pasar datos a la plantilla.
-
             // Obtener y añadir mensaje de éxito de los query parameters (ej.
             // ?message=Cuenta creada!)
             String successMessage = req.queryParams("message");
             if (successMessage != null && !successMessage.isEmpty()) {
                 model.put("successMessage", successMessage);
             }
-
             // Obtener y añadir mensaje de error de los query parameters (ej. ?error=Campos
             // vacíos)
             String errorMessage = req.queryParams("error");
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 model.put("errorMessage", errorMessage);
             }
-
             // Renderiza la plantilla 'user_form.mustache' con los datos del modelo.
             return new ModelAndView(model, "user_form.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
 
         // GET: Ruta para mostrar el dashboard (panel de control) del usuario.
         // Requiere que el usuario esté autenticado.
+        // GET: Ruta para mostrar el dashboard (panel de control) del usuario.
+        // Requiere que el usuario esté autenticado.
         get("/dashboard", (req, res) -> {
             Map<String, Object> model = new HashMap<>(); // Modelo para la plantilla del dashboard.
 
-
-            String successMsg = req.queryParams("message");
-            if (successMsg != null) {
-                model.put("message", successMsg); // 'message' debe coincidir con {{message}} en el mustache
-            }
-
-            String errorMsg = req.queryParams("error");
-            if (errorMsg != null) {
-                model.put("error", errorMsg);
-            }
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            // Si no está logueado o la sesión expiró, SessionManager redirige al login.
+            if (!SessionManager.checkSession(req, res))
+                return null;
 
             // Intenta obtener el nombre de usuario y la bandera de login de la sesión.
             String currentUsername = req.session().attribute("currentUserUsername");
@@ -225,6 +231,28 @@ public class App {
             model.put("isAlumno", userRole != null && userRole.equals("alumno"));
             // NUEVO
 
+            // Calcular tiempo restante de sesión para alumnos y profesores.
+            // El admin nunca expira, por lo que no se setea sessionExpira para él.
+            // Mustache interpreta sessionExpira como false si no está seteado.
+            if (!"admin".equals(userRole)) {
+                Long lastAccess = req.session().attribute("lastAccessTime");
+                if (lastAccess != null) {
+                    long transcurridos = (System.currentTimeMillis() - lastAccess) / 1000;
+                    long restantes = SessionManager.TIMEOUT_SECONDS - transcurridos;
+                    model.put("sessionExpira", true);
+                    model.put("sessionTiempoSegundos", Math.max(restantes, 0));
+                }
+            }
+
+            // Mensajes de éxito/error pasados como query parameters (ej. ?message=... o
+            // ?error=...)
+            String successMsg = req.queryParams("message");
+            if (successMsg != null && !successMsg.isEmpty())
+                model.put("message", successMsg);
+            String errorMsg = req.queryParams("error");
+            if (errorMsg != null && !errorMsg.isEmpty())
+                model.put("error", errorMsg);
+
             // 4. Renderiza la plantilla del dashboard con el nombre de usuario.
             return new ModelAndView(model, "dashboard.mustache");
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta.
@@ -247,6 +275,11 @@ public class App {
         // GET: Panel de admin para ver usuarios y desbloquear cuentas
         get("/admin/usuarios", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
+
             // (NUEVO)
             if (!esAdmin(req)) {
                 res.redirect("/login?error="
@@ -610,6 +643,11 @@ public class App {
         // Nuevo
         // GET: Ver todas las materias
         get("/admin/materias", (req, res) -> {
+
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
+
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return null;
@@ -673,6 +711,10 @@ public class App {
 
         // POST: Crear materia
         post("/admin/materias/crear", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
+
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return "";
@@ -710,6 +752,9 @@ public class App {
 
         // POST: Eliminar materia
         post("/admin/materias/eliminar/:id", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
             if (!esAdmin(req)) {
                 res.redirect("/login?error=No tenés permisos.");
                 return "";
@@ -734,6 +779,9 @@ public class App {
         // NUEVO...
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
 
             // Lo colocamos por si alguien supiera la URL para desbloquear usuarios.
             if (!esAdmin(req)) {
@@ -809,6 +857,10 @@ public class App {
         // GET para el manejo del envio de formulario de carga de profesor
 
         get("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
+
             Map<String, Object> model = new HashMap<>();
 
             String errorMessage = req.queryParams("error");
@@ -822,7 +874,6 @@ public class App {
             }
             return new ModelAndView(model, "teacher_formulario.mustache");
         }, new MustacheTemplateEngine());
-
 
         // GET: Formulario para que el alumno redacte su queja
         get("/alumno/queja", (req, res) -> {
@@ -843,25 +894,27 @@ public class App {
                 return null;
             }
             Map<String, Object> model = new HashMap<>();
-            
+
             // Capturamos el mensaje de la URL para que el Admin vea "Queja resuelta" arriba
             String successMsg = req.queryParams("message");
-            if (successMsg != null) model.put("message", successMsg);
+            if (successMsg != null)
+                model.put("message", successMsg);
 
             List<Map<String, Object>> listaQuejas = new ArrayList<>();
-            
+
             // Traemos las quejas
-            List<Map> quejasRaw = Base.findAll("SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
-            
+            List<Map> quejasRaw = Base.findAll(
+                    "SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
+
             for (Map q : quejasRaw) {
                 Map<String, Object> quejaMap = new HashMap<>(q);
-                
+
                 // Esta es la lógica que separa las listas en el HTML
                 quejaMap.put("esResuelta", "RESUELTA".equals(q.get("status")));
-                
+
                 listaQuejas.add(quejaMap);
             }
-            
+
             model.put("quejas", listaQuejas);
             // IMPORTANTE: Que el nombre termine en 's' (admin_quejas.mustache)
             return new ModelAndView(model, "admin_quejas.mustache");
@@ -870,6 +923,9 @@ public class App {
         // nuevo profesor
 
         post("/cargarProfesor", (req, res) -> {
+            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
+            if (!SessionManager.checkSession(req, res))
+                return null;
 
             // obtengo datos
             String name = req.queryParams("name");
@@ -892,7 +948,7 @@ public class App {
 
             int dni = Integer.parseInt(dniStr);
 
-            // compruebo el dni, su existencia
+            // compruebo existencia de dni
             Teacher dniExiste = Teacher.findFirst("dni = ?", dni);
             if (dniExiste != null) {
                 res.status(409);
@@ -954,7 +1010,6 @@ public class App {
                 res.redirect("/cargarProfesor?error=Error interno al crear la cuenta. Intente de nuevo.");
                 return "";
             }
-
         });
 
         // --- Rutas POST para manejar envíos de formularios y APIs ---
@@ -1056,6 +1111,10 @@ public class App {
                 String userRole = ac.getString("role"); // guardamos el rol en una variable (NUEVO)
                 req.session().attribute("userRole", userRole); // guardamos el valor en la session (NUEVO)
 
+                // NUEVO 4/4: Inicializar sesión a través de SessionManager.
+                // Guarda todos los atributos de sesión y el timestamp de último acceso.
+                SessionManager.initSession(req, username, ac.getId(), userRole);
+
                 System.out.println("DEBUG: Login exitoso para la cuenta: " + username);
                 System.out.println("DEBUG: ID de Sesión: " + req.session().id());
 
@@ -1138,24 +1197,28 @@ public class App {
 
             // 3. Validación de campos vacíos
             if (title == null || title.isEmpty() || description == null || description.isEmpty()) {
-                res.redirect("/alumno/queja?error=" + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
+                res.redirect("/alumno/queja?error="
+                        + URLEncoder.encode("Todos los campos son obligatorios.", StandardCharsets.UTF_8));
                 return "";
             }
 
             try {
                 // 4. Inserción en la base de datos
-                // Usamos Base.exec directamente para asegurar que los datos entren correctamente
-                Base.exec("INSERT INTO complaints (user_id, title, description, status) VALUES (?, ?, ?, ?)", 
+                // Usamos Base.exec directamente para asegurar que los datos entren
+                // correctamente
+                Base.exec("INSERT INTO complaints (user_id, title, description, status) VALUES (?, ?, ?, ?)",
                         userId, title, description, "PENDIENTE");
 
                 System.out.println("DEBUG: Queja enviada por el usuario ID: " + userId);
-                
-                res.redirect("/dashboard?message=" + URLEncoder.encode("Queja enviada correctamente.", StandardCharsets.UTF_8));
+
+                res.redirect("/dashboard?message="
+                        + URLEncoder.encode("Queja enviada correctamente.", StandardCharsets.UTF_8));
                 return "";
             } catch (Exception e) {
                 System.err.println("Error al insertar queja: " + e.getMessage());
                 e.printStackTrace();
-                res.redirect("/alumno/queja?error=" + URLEncoder.encode("Error interno al procesar la queja.", StandardCharsets.UTF_8));
+                res.redirect("/alumno/queja?error="
+                        + URLEncoder.encode("Error interno al procesar la queja.", StandardCharsets.UTF_8));
                 return "";
             }
         });
@@ -1166,30 +1229,32 @@ public class App {
                 return null;
             }
             Map<String, Object> model = new HashMap<>();
-            
+
             List<Map<String, Object>> listaQuejas = new ArrayList<>();
-            
+
             // 1. Buscamos todas las quejas de la base de datos
-            List<Map> quejasRaw = Base.findAll("SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
-            
+            List<Map> quejasRaw = Base.findAll(
+                    "SELECT c.*, u.name as alumno_nombre FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC");
+
             for (Map q : quejasRaw) {
                 // 2. Creamos un nuevo mapa para poder agregarle datos extra
                 Map<String, Object> quejaMap = new HashMap<>(q);
-                
+
                 // 3. AQUÍ VA EL AJUSTE LÓGICO:
                 // Creamos la "bandera" esResuelta que Mustache usará para filtrar
                 quejaMap.put("esResuelta", "RESUELTA".equals(q.get("status")));
-                
+
                 listaQuejas.add(quejaMap);
             }
-            
+
             model.put("quejas", listaQuejas);
             return new ModelAndView(model, "admin_quejas.mustache");
         }, new MustacheTemplateEngine());
 
         // POST: Cambiar estado de la queja a EN_REVISION
         post("/admin/quejas/revisar/:id", (req, res) -> {
-            if (!esAdmin(req)) return "";
+            if (!esAdmin(req))
+                return "";
             Base.exec("UPDATE complaints SET status = 'EN_REVISION' WHERE id = ?", req.params(":id"));
             res.redirect("/admin/quejas?message=" + encode("Queja puesta en revisión."));
             return "";
@@ -1197,7 +1262,8 @@ public class App {
 
         // POST: Cambiar estado de la queja a RESUELTA
         post("/admin/quejas/resolver/:id", (req, res) -> {
-            if (!esAdmin(req)) return "";
+            if (!esAdmin(req))
+                return "";
             Base.exec("UPDATE complaints SET status = 'RESUELTA' WHERE id = ?", req.params(":id"));
             res.redirect("/admin/quejas?message=" + encode("Queja marcada como resuelta."));
             return "";
@@ -1218,9 +1284,11 @@ public class App {
         return loggedIn != null && loggedIn && "alumno".equals(role);
     }
 
-    // Método auxiliar para codificar mensajes en la URL y evitar errores de sintaxis
+    // Método auxiliar para codificar mensajes en la URL y evitar errores de
+    // sintaxis
     private static String encode(String msg) {
-        if (msg == null) return "";
+        if (msg == null)
+            return "";
         return java.net.URLEncoder.encode(msg, java.nio.charset.StandardCharsets.UTF_8);
     }
 } // Fin de la clase App
