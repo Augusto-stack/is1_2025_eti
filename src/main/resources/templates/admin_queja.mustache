@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Quejas - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6 min-h-screen">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-lg shadow-md">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Buzón de Quejas</h1>
+                <p class="text-gray-600">Revisión de reclamos del alumnado</p>
+            </div>
+            <a href="/dashboard" class="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700 transition shadow-sm">
+                Volver al Panel
+            </a>
+        </div>
+
+        <div class="space-y-6">
+            {{#quejas}}
+            <div class="bg-white p-6 rounded-lg shadow-lg border-l-8 border-red-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800 uppercase tracking-tight">{{title}}</h2>
+                        <p class="text-sm text-gray-500">Enviado por: <span class="font-bold text-blue-600">{{alumno_nombre}}</span></p>
+                    </div>
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full border border-red-200">
+                        {{status}}
+                    </span>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded border border-gray-200">
+                    <p class="text-gray-700 leading-relaxed italic">"{{description}}"</p>
+                </div>
+
+                <div class="flex justify-between items-center mt-4 text-xs text-gray-400">
+                    <span>ID de Queja: #{{id}}</span>
+                    <span>Fecha: {{created_at}}</span>
+                </div>
+            </div>
+            {{/quejas}}
+
+            {{^quejas}}
+            <div class="bg-white p-12 rounded-lg shadow text-center">
+                <p class="text-gray-500 text-xl font-medium">No hay quejas registradas actualmente.</p>
+            </div>
+            {{/quejas}}
+        </div>
+    </div>
+</body>
+</html>
