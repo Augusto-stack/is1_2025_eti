@@ -101,6 +101,8 @@ public class App {
                                 + "user_id INTEGER NOT NULL,"
                                 + "materia_id INTEGER NOT NULL,"
                                 + "calificacion REAL DEFAULT NULL," // null = sin nota todavía
+                                + "modificada INTEGER DEFAULT 0," // ← 0 = original, 1 = modificada
+                                + "comentario TEXT DEFAULT NULL," // ← comentario del profesor
                                 + "FOREIGN KEY (user_id) REFERENCES users(id),"
                                 + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
                                 + ");");
@@ -358,6 +360,69 @@ public class App {
             return "";
         });
 
+        get("/alumno/notas", (req, res) -> {
+            Map<String, Object> model = new HashMap<>();
+
+            Boolean loggedIn = req.session().attribute("loggedIn");
+            String userRole = req.session().attribute("userRole");
+            if (loggedIn == null || !loggedIn || !"alumno".equals(userRole)) {
+                res.redirect("/login?error=" + URLEncoder.encode("No tenés permisos.", StandardCharsets.UTF_8));
+                return null;
+            }
+
+            Object userId = req.session().attribute("userId");
+
+            // Obtener todas las inscripciones del alumno
+            List<Map<String, Object>> listaNotas = new ArrayList<>();
+            List<Map> inscripciones = Base.findAll(
+                    "SELECT * FROM inscripciones WHERE user_id = ?", userId);
+
+            double suma = 0;
+            int conNota = 0;
+
+            for (Map inscripcion : inscripciones) {
+                Object materiaId = inscripcion.get("materia_id");
+                Materia materia = Materia.findById(materiaId);
+
+                if (materia != null) {
+                    Map<String, Object> mapa = new HashMap<>();
+                    mapa.put("materia", materia.getString("nombre"));
+
+                    Object calificacion = inscripcion.get("calificacion");
+                    Object modificada = inscripcion.get("modificada");
+                    Object comentario = inscripcion.get("comentario");
+
+                    if (calificacion != null) {
+                        double nota = Double.parseDouble(calificacion.toString());
+                        mapa.put("calificacion", nota);
+                        mapa.put("tienaNota", true);
+                        mapa.put("aprobado", nota >= 6);
+                        mapa.put("desaprobado", nota < 6);
+                        suma += nota;
+                        conNota++;
+                    } else {
+                        mapa.put("calificacion", "Sin nota");
+                        mapa.put("tieneNota", false);
+                    }
+
+                    mapa.put("modificada", modificada != null && modificada.toString().equals("1"));
+                    mapa.put("comentario", comentario != null ? comentario : "");
+
+                    listaNotas.add(mapa);
+                }
+            }
+
+            // Calcular promedio
+            if (conNota > 0) {
+                double promedio = suma / conNota;
+                model.put("promedio", String.format("%.2f", promedio));
+                model.put("tienePromedio", true);
+            }
+
+            model.put("notas", listaNotas);
+            return new ModelAndView(model, "alumno_notas.mustache");
+        }, new MustacheTemplateEngine());
+
         // Nuevo
         get("/profesor/materias", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
@@ -409,7 +474,7 @@ public class App {
             return new ModelAndView(model, "profesor_materias.mustache");
         }, new MustacheTemplateEngine());
 
-        //Para que el profesor vea los inscriptos en su mate
+        // Para que el profesor vea los inscriptos en su mate
         get("/profesor/materias/:id/alumnos", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
 
@@ -459,6 +524,65 @@ public class App {
 
             return new ModelAndView(model, "profesor_alumnos.mustache");
         }, new MustacheTemplateEngine());
+
+        post("/profesor/materias/:id/nota", (req, res) -> {
+            Boolean loggedIn = req.session().attribute("loggedIn");
+            String userRole = req.session().attribute("userRole");
+            if (loggedIn == null || !loggedIn || !"profesor".equals(userRole)) {
+                res.redirect("/login?error=" + URLEncoder.encode("No tenés permisos.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            int materiaId = Integer.parseInt(req.params(":id"));
+            String alumnoNombre = req.queryParams("alumnoNombre");
+            String notaStr = req.queryParams("nota");
+
+            if (notaStr == null || notaStr.isEmpty() || alumnoNombre == null || alumnoNombre.isEmpty()) {
+                res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                        + URLEncoder.encode("Datos incompletos.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            // Buscar el user del alumno
+            User alumno = User.findFirst("name = ?", alumnoNombre);
+            if (alumno == null) {
+                res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                        + URLEncoder.encode("Alumno no encontrado.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            double nota = Double.parseDouble(notaStr);
+
+            if (nota < 0 || nota > 10) {
+                res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                        + URLEncoder.encode("La nota debe estar entre 0 y 10.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            // Si ya tiene nota, es una modificación
+            List<Map> existente = Base.findAll(
+                    "SELECT * FROM inscripciones WHERE user_id = ? AND materia_id = ?",
+                    alumno.getId(), materiaId);
+
+            boolean yaTeniaNota = !existente.isEmpty()
+                    && existente.get(0).get("calificacion") != null;
+
+            String comentario = req.queryParams("comentario");
+
+            if (yaTeniaNota) {
+                Base.exec(
+                        "UPDATE inscripciones SET calificacion = ?, modificada = 1, comentario = ? WHERE user_id = ? AND materia_id = ?",
+                        nota, comentario, alumno.getId(), materiaId);
+            } else {
+                Base.exec(
+                        "UPDATE inscripciones SET calificacion = ?, modificada = 0, comentario = NULL WHERE user_id = ? AND materia_id = ?",
+                        nota, alumno.getId(), materiaId);
+            }
+
+            res.redirect("/profesor/materias/" + materiaId + "/alumnos?message="
+                    + URLEncoder.encode("Nota cargada correctamente.", StandardCharsets.UTF_8));
+            return "";
+        });
 
         // Nuevo
         // GET: Ver todas las materias
