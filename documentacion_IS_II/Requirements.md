@@ -22,11 +22,11 @@ Este documento tiene como finalidad dar a conocer el funcionamiento general del 
 #### 1.3 Usuarios a los que está dirigido
 El sistema está dirigido principalmente a tres tipos de usuarios:
 
-- **Administrador**: Personal administrativo encargado de gestionar cuentas de profesores y alumnos (alta, baja y modificación), administrar materias, asignar docentes y coordinar su relación con carreras o áreas. También será responsable del reseteo de contraseñas en caso de inconvenientes.
+- **Administrador**: Personal administrativo encargado de gestionar cuentas de profesores y alumnos (alta, baja y modificación), administrar materias, asignar docentes y coordinar su relación con carreras o áreas. También será responsable del reseteo de contraseñas en caso de inconvenientes y tambien es el que gestiona las quejas del sistema.
 
-- **Profesores**: Podrán gestionar las materias a su cargo (una o varias), visualizar los estudiantes inscriptos y administrar información académica como calificaciones, tareas y consultas de los alumnos.
+- **Profesores**: Podrán gestionar las materias a su cargo (una o varias), visualizar los estudiantes inscriptos y administrar información académica como calificaciones y tareas.
 
-- **Alumnos**: Podrán inscribirse y darse de baja en materias, consultar notas, visualizar su información académica (promedio, historial de materias) y realizar consultas a los profesores.
+- **Alumnos**: Podrán inscribirse y darse de baja en materias, consultar notas, visualizar su información académica (promedio, historial de materias).
 
 #### 1.4 Funcionalidades Principales
 
