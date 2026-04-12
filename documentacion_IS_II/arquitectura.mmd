@@ -1,0 +1,36 @@
+---
+id: 5bc72060-9c0d-44b0-83de-608693f4f9a9
+---
+graph TD
+    subgraph Cliente
+        Browser[Navegador Web / Mustache Templates]
+    end
+
+    subgraph Servidor_Spark_Java[Servidor Backend - Spark Java]
+        App[App.java - Main & Routes]
+        Filters[Before/After Filters - DB Connection]
+        Session[SessionManager - Auth Logic]
+        Mustache[MustacheTemplateEngine]
+    end
+
+    subgraph Modelos_ActiveJDBC[Modelos - Data Layer]
+        UserMod[User.java]
+        TeacherMod[Teacher.java]
+        MateriaMod[Materia.java]
+    end
+
+    subgraph Persistencia
+        DB[(dev.db - SQLite)]
+        Config[DBConfigSingleton]
+    end
+
+    Browser <-->|HTTP GET/POST| App
+    App --> Filters
+    App --> Session
+    App --> Mustache
+    Filters --> Config
+    Config --> DB
+    App --> UserMod
+    App --> TeacherMod
+    App --> MateriaMod
+    UserMod & TeacherMod & MateriaMod --> DB
