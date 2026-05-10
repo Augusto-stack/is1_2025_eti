@@ -12,11 +12,12 @@
 ### a) Problemas propuestos por nuestro equipo a resolver.
 
 - Poner un limite de intentos a 3 en el login de Usuario. (HECHO)
+- Luego del 3er (tercer) intento colocar un cronometro para permitir
 - Colocar una via para recuperar contraseña.              (DUDA)
 - Nuevos roles: *alumno*, *profesor*, *admin*.              (HECHO)
 - Nueva entidad: **Asignatura** (nombre, profesor a cargo, calificacion, estudiantes inscriptos, cantidad estudiantes).
-- Filtros en la creacion de cuentas.
-- Cada rol vea un dashboard distinto.           
+- Filtros en la creacion de cuentas. (enistar dichos filtros)
+- Adaptacion del dashboard segun el rol logeado.
 
 --- 
 
@@ -47,6 +48,7 @@ Tendriamos 3 tipos de usuarios:
 
 ### d) Tamaño del equipo y Plazo estimado
 
- El tamaño de nuestro equipo va a ser de 5 personas y el plazo que creemos que nos va a llevar van a ser 2 meses.
+ El tamaño del equipo de trabajo consiste de 5 personas.
+ Plazo estimado de 2 (dos) meses.
 
  ### e) Cambio de alcanse ocurridos
