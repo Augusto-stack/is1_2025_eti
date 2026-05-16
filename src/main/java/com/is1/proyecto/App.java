@@ -64,6 +64,10 @@ public class App {
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
         before((req, res) -> {
+            if(Base.hasConnection()){
+                Base.close();
+            }
+
             try {
                 // Abre una conexión a la base de datos utilizando las credenciales del
                 // singleton.
@@ -146,6 +150,10 @@ public class App {
                 }
 
             } catch (Exception e) {
+
+                if(Base.hasConnection()){
+                    Base.close();
+                }
                 // Si ocurre un error al abrir la conexión, se registra y se detiene la
                 // solicitud
                 // con un código de estado 500 (Internal Server Error) y un mensaje JSON.
@@ -299,6 +307,10 @@ public class App {
                                                                // tres campos:
                 usuarioMap.put("bloqueado", u.getInteger("blocked") == 1);
                 usuarioMap.put("intentos", u.getInteger("loginAttempts"));
+                usuarioMap.put("rol", u.getString("role"));
+                usuarioMap.put("esAdmin", "admin".equals(u.getString("role")));
+                usuarioMap.put("esProfesor", "profesor".equals(u.getString("role")));
+                usuarioMap.put("esAlumno", "alumno".equals(u.getString("role")));
                 listaUsuarios.add(usuarioMap);
             }
 
@@ -1081,7 +1093,9 @@ public class App {
 
             // Verificar si la cuenta está bloqueada NUEVO
             int blocked = ac.getInteger("blocked");
-            if (blocked == 1) {
+            //variable para que no se bloquee al admin
+            String roleCheck = ac.getString("role");
+            if (blocked == 1 && !"admin".equals(roleCheck)) {
                 res.status(401);
                 model.put("errorMessage", "Tu cuenta está bloqueada, contactá al administrador.");
                 return new ModelAndView(model, "login.mustache"); // NUEVO
@@ -1123,6 +1137,13 @@ public class App {
                 res.redirect("/dashboard");
                 return null;
             } else {
+                //variable para que no se bloquee al admin
+                String userRole = ac.getString("role");
+                if("admin".equals(userRole)){
+                    res.status(401);
+                    model.put("errorMessage", "Usuario o contraseña incorrectos.");
+                    return new ModelAndView(model, "login.mustache");
+                }
                 // Sumar 1 al contador de intentos fallidos NUEVO
                 int attempts = ac.getInteger("loginAttempts") + 1;
                 ac.set("loginAttempts", attempts);

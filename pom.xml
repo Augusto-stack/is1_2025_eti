@@ -99,7 +99,7 @@
       <plugin>
         <groupId>org.javalite</groupId>
         <artifactId>activejdbc-instrumentation</artifactId>
-        <version>${activejdbc.version}</version>
+        <version>3.0</version>
         <executions>
           <execution>
             <phase>process-classes</phase>
