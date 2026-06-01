@@ -1,4 +1,6 @@
 com/is1/proyecto/App.class
+com/is1/proyecto/models/Materia.class
 com/is1/proyecto/models/User.class
-com/is1/proyecto/models/Teacher.class
+com/is1/proyecto/config/SessionManager.class
 com/is1/proyecto/config/DBConfigSingleton.class
+com/is1/proyecto/models/Teacher.class

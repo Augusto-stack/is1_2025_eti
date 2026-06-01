@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mis Notas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Mis Notas</h1>
+
+    {{#tienePromedio}}
+    <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6 text-center">
+        <p class="text-blue-700 text-lg font-semibold">Promedio general: {{promedio}}</p>
+    </div>
+    {{/tienePromedio}}
+
+    <div class="bg-white rounded-lg shadow">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b bg-gray-50">
+                    <th class="py-3 px-6">Materia</th>
+                    <th class="py-3 px-6">Calificación</th>
+                    <th class="py-3 px-6">Estado</th>
+                    <th class="py-3 px-6">Comentario</th>  <!-- ← nuevo -->
+                </tr>
+            </thead>
+            <tbody>
+                {{#notas}}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-3 px-6 font-medium">{{materia}}</td>
+                    <td class="py-3 px-6">{{calificacion}}</td>
+                    <td class="py-3 px-6">
+                        {{#aprobado}}
+                        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">
+                            Aprobado
+                        </span>
+                        {{/aprobado}}
+                        {{#desaprobado}}
+                        <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">
+                            Desaprobado
+                        </span>
+                        {{/desaprobado}}
+                        {{#modificada}}
+                        <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-semibold ml-1">
+                            Modificada
+                        </span>
+                        {{/modificada}}
+                        {{^tieneNota}}
+                        <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-semibold">
+                            Pendiente
+                        </span>
+                        {{/tieneNota}}
+                    </td>
+                    <td class="py-3 px-6 text-sm text-gray-500 italic">  <!-- ← nuevo -->
+                        {{#modificada}}
+                        {{comentario}}
+                        {{/modificada}}
+                    </td>
+                </tr>
+                {{/notas}}
+                {{^notas}}
+                <tr>
+                    <td colspan="4" class="py-4 px-6 text-center text-gray-400">
+                        No estás inscripto en ninguna materia todavía.
+                    </td>
+                </tr>
+                {{/notas}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center mt-6">
+        <a href="/dashboard" class="text-blue-600 hover:underline">← Volver al dashboard</a>
+    </div>
+</div>
+</body>
+</html>

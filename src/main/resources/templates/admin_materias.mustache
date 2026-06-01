@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Materias</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Gestión de Materias</h1>
+
+    {{#successMessage}}
+    <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">{{successMessage}}</div>
+    {{/successMessage}}
+    {{#errorMessage}}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{{errorMessage}}</div>
+    {{/errorMessage}}
+
+    <!-- Formulario para crear materia -->
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Nueva Materia</h2>
+        <form action="/admin/materias/crear" method="post" class="flex flex-col gap-4">
+            <input type="text" name="nombre" placeholder="Nombre de la materia" required
+                   class="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+            <label class="text-sm text-gray-600 font-medium">Profesor Teórico:</label>
+            <select name="teacher_teorico_id" class="px-4 py-2 border border-gray-300 rounded-md">
+                <option value="">-- Sin profesor teórico --</option>
+                {{#profesores}}
+                <option value="{{id}}">{{nombreCompleto}}</option>
+                {{/profesores}}
+            </select>
+
+            <label class="text-sm text-gray-600 font-medium">Profesor Práctico:</label>
+            <select name="teacher_practico_id" class="px-4 py-2 border border-gray-300 rounded-md">
+                <option value="">-- Sin profesor práctico --</option>
+                {{#profesores}}
+                <option value="{{id}}">{{nombreCompleto}}</option>
+                {{/profesores}}
+            </select>
+
+            <button type="submit"
+                    class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                Crear Materia
+            </button>
+        </form>
+    </div>
+
+    <!-- Listado de materias -->
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Materias existentes</h2>
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b bg-gray-50">
+                    <th class="py-2 px-4">Nombre</th>
+                    <th class="py-2 px-4">Prof. Teórico</th>
+                    <th class="py-2 px-4">Prof. Práctico</th>
+                    <th class="py-2 px-4">Inscriptos</th>
+                    <th class="py-2 px-4">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#materias}}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-2 px-4">{{nombre}}</td>
+                    <td class="py-2 px-4">{{profesorTeorico}}</td>
+                    <td class="py-2 px-4">{{profesorPractico}}</td>
+                    <td class="py-2 px-4">{{cantidadAlumnos}}</td>
+                    <td class="py-2 px-4">
+                        <form action="/admin/materias/eliminar/{{id}}" method="post">
+                            <button type="submit"
+                                    class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">
+                                Eliminar
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {{/materias}}
+                {{^materias}}
+                <tr>
+                    <td colspan="5" class="py-4 px-4 text-center text-gray-400">No hay materias cargadas todavía.</td>
+                </tr>
+                {{/materias}}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center mt-6">
+        <a href="/dashboard" class="text-blue-600 hover:underline">← Volver al dashboard</a>
+    </div>
+</div>
+</body>
+</html>

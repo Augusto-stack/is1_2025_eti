@@ -1,0 +1,74 @@
+---
+id: e425f7c8-f6b7-43f0-88fc-9181c0a88591
+---
+classDiagram
+    class User {
+        -int id
+        -String name
+        -String password
+        -String role
+        -int loginAttempts
+        -int blocked
+        +getName() String
+        +setName(String name)
+        +getPassword() String
+        +setPassword(String password)
+        +inscribirseAmateria()
+        +darseDeBaja()
+        +realizarQueja()
+    }
+
+    class Teacher {
+        -int id
+        -String name
+        -String lastName
+        -int dni
+        -String email
+        -int user_id
+        +subirNota(Alumno)
+        +modificarNota()
+        +verInscriptos(Materia)
+    }
+
+    class Materia {
+        -int id
+        -String nombre
+        -int teacher_teorico_id
+        -int teacher_practico_id
+    }
+
+    class Inscripcion {
+        -int id
+        -int user_id
+        -int materia_id
+        -double calificacion
+        -int modificada
+        -String comentario
+    }
+
+    class Complaint {
+        -int id
+        -int user_id
+        -String title
+        -String description
+        -String status
+        -DateTime created_at
+    }
+
+    class Admin {
+        +desbloquearUsuario()
+        +crearMateria()
+        +asignarDocenteAMateria()
+        +obtenerQuejas()
+    }
+
+    %% Relaciones
+    User "1" -- "0..1" Teacher : es vinculado a
+    User "1" -- "0..*" Inscripcion : posee
+    User "1" -- "0..*" Complaint : realiza
+    Materia "1" -- "0..*" Inscripcion : registra
+    Teacher "1" -- "0..*" Materia : dicta_teoria
+    Teacher "1" -- "0..*" Materia : dicta_practica
+    Admin "1" -- "0..*" Teacher : Crea
+    Admin "1" -- "0..*" Materia : Crea
+    Admin "1" -- "0..*" Complaint : Gestiona
