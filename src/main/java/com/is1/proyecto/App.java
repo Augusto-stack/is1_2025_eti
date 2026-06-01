@@ -1289,6 +1289,77 @@ public class App {
             res.redirect("/admin/quejas?message=" + encode("Queja marcada como resuelta."));
             return "";
         });
+
+                // GET: Panel de estadísticas generales del sistema.
+        // Solo accesible para el administrador.
+        // Muestra conteos de usuarios, materias, inscripciones, quejas y destacados.
+        get("/admin/estadisticas", (req, res) -> {
+
+            // Verificar sesión activa
+            if (!SessionManager.checkSession(req, res)) return null;
+
+            // Solo el admin puede acceder
+            if (!esAdmin(req)) {
+                res.redirect("/dashboard?error=" + encode("No tenés permisos."));
+                return null;
+            }
+
+            Map<String, Object> model = new HashMap<>();
+
+            // --- Conteos generales ---
+            long totalAlumnos        = Base.count("users", "role = ?", "alumno");
+            long totalProfesores     = Base.count("users", "role = ?", "profesor");
+            long totalMaterias       = Base.count("materias");
+            long totalInscripciones  = Base.count("inscripciones");
+
+            // --- Quejas agrupadas por estado ---
+            long quejasPendientes = Base.count("complaints", "status = ?", "PENDIENTE");
+            long quejasEnRevision = Base.count("complaints", "status = ?", "EN_REVISION");
+            long quejasResueltas  = Base.count("complaints", "status = ?", "RESUELTA");
+            long quejasTotal      = quejasPendientes + quejasEnRevision + quejasResueltas;
+
+            // --- Alumnos bloqueados por intentos fallidos ---
+            long alumnosBloqueados = Base.count("users", "blocked = 1 AND role = ?", "alumno");
+
+            // --- Materia con mayor cantidad de inscriptos ---
+            List<Map> topMateria = Base.findAll(
+                "SELECT m.nombre, COUNT(i.id) as cantidad " +
+                "FROM materias m LEFT JOIN inscripciones i ON m.id = i.materia_id " +
+                "GROUP BY m.id ORDER BY cantidad DESC LIMIT 1"
+            );
+            if (!topMateria.isEmpty()) {
+                model.put("topMateriaNombre", topMateria.get(0).get("nombre"));
+                model.put("topMateriaCantidad", topMateria.get(0).get("cantidad"));
+                model.put("hayTopMateria", true);
+            }
+
+            // --- Alumno con mejor promedio de calificaciones ---
+            List<Map> topAlumno = Base.findAll(
+                "SELECT u.name, AVG(i.calificacion) as promedio " +
+                "FROM users u JOIN inscripciones i ON u.id = i.user_id " +
+                "WHERE i.calificacion IS NOT NULL AND u.role = 'alumno' " +
+                "GROUP BY u.id ORDER BY promedio DESC LIMIT 1"
+            );
+            if (!topAlumno.isEmpty()) {
+                model.put("topAlumnoNombre", topAlumno.get(0).get("name"));
+                Object prom = topAlumno.get(0).get("promedio");
+                model.put("topAlumnoPromedio", prom != null ? String.format("%.2f", Double.parseDouble(prom.toString())) : "-");
+                model.put("hayTopAlumno", true);
+            }
+
+            // --- Pasar todos los datos al modelo para Mustache ---
+            model.put("totalAlumnos", totalAlumnos);
+            model.put("totalProfesores", totalProfesores);
+            model.put("totalMaterias", totalMaterias);
+            model.put("totalInscripciones", totalInscripciones);
+            model.put("quejasPendientes", quejasPendientes);
+            model.put("quejasEnRevision", quejasEnRevision);
+            model.put("quejasResueltas", quejasResueltas);
+            model.put("quejasTotal", quejasTotal);
+            model.put("alumnosBloqueados", alumnosBloqueados);
+
+            return new ModelAndView(model, "admin_estadisticas.mustache");
+        }, new MustacheTemplateEngine());
     } // Fin del método main
 
     // Creamos este metodo para ahorrarnos el verificar si es admin o no.
@@ -1312,4 +1383,5 @@ public class App {
             return "";
         return java.net.URLEncoder.encode(msg, java.nio.charset.StandardCharsets.UTF_8);
     }
+    
 } // Fin de la clase App
