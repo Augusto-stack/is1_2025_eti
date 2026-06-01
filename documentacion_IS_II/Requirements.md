@@ -7,19 +7,23 @@
 # Guia de Trabajo Practico
 
 ## 1. INTRODUCCION
-En el presente documento se explican y analizan los requerimientos del proyecto SIUA *(Sistema Integral Universitario Académico)*, desarrollado para la materia Ingeniería del Software II de la carrera de Analista en Computación.
+
+En el presente documento se explican y analizan los requerimientos del proyecto SIUA _(Sistema Integral Universitario Académico)_, desarrollado para la materia Ingeniería del Software II de la carrera de Analista en Computación.
 
 ---
 
 ### 1.1 Propósito
-Este documento tiene como finalidad dar a conocer el funcionamiento general del proyecto SIUA *(Sistema Integral Universitario Académico)*, el cual representa la continuación del proyecto iniciado en la materia correlativa Ingeniería del Software I.
+
+Este documento tiene como finalidad dar a conocer el funcionamiento general del proyecto SIUA _(Sistema Integral Universitario Académico)_, el cual representa la continuación del proyecto iniciado en la materia correlativa Ingeniería del Software I.
 
 #### 1.2 Contexto del Sistema
-- **Nombre del Sistema**: SIUA *(Sistema Integral Universitario Académico)*.  
+
+- **Nombre del Sistema**: SIUA _(Sistema Integral Universitario Académico)_.
 - El sistema está destinado a la gestión de procesos administrativos y académicos de una institución educativa. Permitirá el alta, baja y modificación de profesores, alumnos y personal administrativo (con rol de administrador), así como también la gestión de materias de distintas carreras.
 - El principal beneficiario del sistema serán las instituciones educativas que lo implementen. El objetivo es sistematizar y optimizar los procesos administrativos y académicos en términos de tiempo y recursos.
 
 #### 1.3 Usuarios a los que está dirigido
+
 El sistema está dirigido principalmente a tres tipos de usuarios:
 
 - **Administrador**: Personal administrativo encargado de gestionar cuentas de profesores y alumnos (alta, baja y modificación), administrar materias, asignar docentes y coordinar su relación con carreras o áreas. También será responsable del reseteo de contraseñas en caso de inconvenientes y tambien es el que gestiona las quejas del sistema.
@@ -35,7 +39,7 @@ El sistema está dirigido principalmente a tres tipos de usuarios:
 - Gestión de usuarios estudiantes (alta, modificación y baja).
 - Límite de intentos de login (máximo 3 intentos).
 - Sistema de recuperación de contraseñas mediante intervención del administrador.
-- Implementación de roles diferenciados (*alumno*, *profesor*, *administrador*).
+- Implementación de roles diferenciados (_alumno_, _profesor_, _administrador_).
 - Gestión de materias (alta, modificación y baja), incluyendo:
   - Nombre y código
   - Profesor responsable
