@@ -64,7 +64,7 @@ public class App {
         // --- Filtro 'before' para gestionar la conexión a la base de datos ---
         // Este filtro se ejecuta antes de cada solicitud HTTP.
         before((req, res) -> {
-            if(Base.hasConnection()){
+            if (Base.hasConnection()) {
                 Base.close();
             }
 
@@ -110,16 +110,16 @@ public class App {
                                 + "FOREIGN KEY (teacher_practico_id) REFERENCES teachers(id)"
                                 + ");");
 
-                // nuevo INSCRIPCIONES
                 // Tabla intermedia que relaciona alumno-materia (para inscripciones)
                 Base.exec(
                         "CREATE TABLE IF NOT EXISTS inscripciones ("
                                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                                 + "user_id INTEGER NOT NULL,"
                                 + "materia_id INTEGER NOT NULL,"
-                                + "calificacion REAL DEFAULT NULL," // null = sin nota todavía
-                                + "modificada INTEGER DEFAULT 0," // ← 0 = original, 1 = modificada
-                                + "comentario TEXT DEFAULT NULL," // ← comentario del profesor
+                                + "calificacion1 REAL DEFAULT NULL," // ← nota 1
+                                + "calificacion2 REAL DEFAULT NULL," // ← nota 2
+                                + "modificada INTEGER DEFAULT 0,"
+                                + "comentario TEXT DEFAULT NULL,"
                                 + "FOREIGN KEY (user_id) REFERENCES users(id),"
                                 + "FOREIGN KEY (materia_id) REFERENCES materias(id)"
                                 + ");");
@@ -151,7 +151,7 @@ public class App {
 
             } catch (Exception e) {
 
-                if(Base.hasConnection()){
+                if (Base.hasConnection()) {
                     Base.close();
                 }
                 // Si ocurre un error al abrir la conexión, se registra y se detiene la
@@ -456,21 +456,27 @@ public class App {
                     Map<String, Object> mapa = new HashMap<>();
                     mapa.put("materia", materia.getString("nombre"));
 
-                    Object calificacion = inscripcion.get("calificacion");
+                    // ← cambiamos calificacion por calificacion1 y calificacion2
+                    Object cal1 = inscripcion.get("calificacion1");
+                    Object cal2 = inscripcion.get("calificacion2");
                     Object modificada = inscripcion.get("modificada");
                     Object comentario = inscripcion.get("comentario");
 
-                    if (calificacion != null) {
-                        double nota = Double.parseDouble(calificacion.toString());
-                        mapa.put("calificacion", nota);
-                        mapa.put("tienaNota", true);
-                        mapa.put("aprobado", nota >= 6);
-                        mapa.put("desaprobado", nota < 6);
-                        suma += nota;
+                    mapa.put("calificacion1", cal1 != null ? cal1 : "Pendiente");
+                    mapa.put("calificacion2", cal2 != null ? cal2 : "Pendiente");
+
+                    // Promedio solo si tiene las dos notas
+                    if (cal1 != null && cal2 != null) {
+                        double promedio = (Double.parseDouble(cal1.toString()) + Double.parseDouble(cal2.toString()))
+                                / 2;
+                        mapa.put("promedio", String.format("%.2f", promedio));
+                        mapa.put("tienePromedio", true);
+                        mapa.put("aprobado", promedio >= 6);
+                        mapa.put("desaprobado", promedio < 6);
+                        suma += promedio;
                         conNota++;
                     } else {
-                        mapa.put("calificacion", "Sin nota");
-                        mapa.put("tieneNota", false);
+                        mapa.put("tienePromedio", false);
                     }
 
                     mapa.put("modificada", modificada != null && modificada.toString().equals("1"));
@@ -480,10 +486,10 @@ public class App {
                 }
             }
 
-            // Calcular promedio
+            // Promedio general — solo considera materias con las dos notas cargadas
             if (conNota > 0) {
-                double promedio = suma / conNota;
-                model.put("promedio", String.format("%.2f", promedio));
+                double promedioGeneral = suma / conNota;
+                model.put("promedio", String.format("%.2f", promedioGeneral));
                 model.put("tienePromedio", true);
             }
 
@@ -575,8 +581,22 @@ public class App {
                 if (alumno != null) {
                     Map<String, Object> mapa = new HashMap<>();
                     mapa.put("nombre", alumno.getString("name"));
-                    Object calificacion = inscripcion.get("calificacion");
-                    mapa.put("calificacion", calificacion != null ? calificacion : "Sin nota");
+
+                    Object cal1 = inscripcion.get("calificacion1");
+                    Object cal2 = inscripcion.get("calificacion2");
+
+                    mapa.put("calificacion1", cal1 != null ? cal1 : "Sin nota");
+                    mapa.put("calificacion2", cal2 != null ? cal2 : "Sin nota");
+
+                    // Promedio de la materia para este alumno
+                    if (cal1 != null && cal2 != null) {
+                        double promedio = (Double.parseDouble(cal1.toString()) + Double.parseDouble(cal2.toString()))
+                                / 2;
+                        mapa.put("promedio", String.format("%.2f", promedio));
+                    } else {
+                        mapa.put("promedio", "Incompleto");
+                    }
+
                     listaAlumnos.add(mapa);
                 }
             }
@@ -603,15 +623,16 @@ public class App {
 
             int materiaId = Integer.parseInt(req.params(":id"));
             String alumnoNombre = req.queryParams("alumnoNombre");
-            String notaStr = req.queryParams("nota");
+            String nota1Str = req.queryParams("nota1");
+            String nota2Str = req.queryParams("nota2");
+            String comentario = req.queryParams("comentario");
 
-            if (notaStr == null || notaStr.isEmpty() || alumnoNombre == null || alumnoNombre.isEmpty()) {
+            if (alumnoNombre == null || alumnoNombre.isEmpty()) {
                 res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
                         + URLEncoder.encode("Datos incompletos.", StandardCharsets.UTF_8));
                 return "";
             }
 
-            // Buscar el user del alumno
             User alumno = User.findFirst("name = ?", alumnoNombre);
             if (alumno == null) {
                 res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
@@ -619,32 +640,61 @@ public class App {
                 return "";
             }
 
-            double nota = Double.parseDouble(notaStr);
+            // Validar notas si fueron ingresadas
+            Double nota1 = null;
+            Double nota2 = null;
 
-            if (nota < 0 || nota > 10) {
-                res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
-                        + URLEncoder.encode("La nota debe estar entre 0 y 10.", StandardCharsets.UTF_8));
-                return "";
+            if (nota1Str != null && !nota1Str.isEmpty()) {
+                nota1 = Double.parseDouble(nota1Str);
+                if (nota1 < 0 || nota1 > 10) {
+                    res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                            + URLEncoder.encode("La nota 1 debe estar entre 0 y 10.", StandardCharsets.UTF_8));
+                    return "";
+                }
+            }
+            if (nota2Str != null && !nota2Str.isEmpty()) {
+                nota2 = Double.parseDouble(nota2Str);
+                if (nota2 < 0 || nota2 > 10) {
+                    res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                            + URLEncoder.encode("La nota 2 debe estar entre 0 y 10.", StandardCharsets.UTF_8));
+                    return "";
+                }
             }
 
-            // Si ya tiene nota, es una modificación
+            // Verificar si ya tenía alguna nota cargada
             List<Map> existente = Base.findAll(
                     "SELECT * FROM inscripciones WHERE user_id = ? AND materia_id = ?",
                     alumno.getId(), materiaId);
 
             boolean yaTeniaNota = !existente.isEmpty()
-                    && existente.get(0).get("calificacion") != null;
+                    && (existente.get(0).get("calificacion1") != null
+                            || existente.get(0).get("calificacion2") != null);
 
-            String comentario = req.queryParams("comentario");
-
-            if (yaTeniaNota) {
+            // Construir el UPDATE dinámicamente según qué notas se ingresaron
+            if (nota1 != null && nota2 != null) {
                 Base.exec(
-                        "UPDATE inscripciones SET calificacion = ?, modificada = 1, comentario = ? WHERE user_id = ? AND materia_id = ?",
-                        nota, comentario, alumno.getId(), materiaId);
+                        "UPDATE inscripciones SET calificacion1 = ?, calificacion2 = ?, modificada = ?, comentario = ? WHERE user_id = ? AND materia_id = ?",
+                        nota1, nota2, yaTeniaNota ? 1 : 0, comentario, alumno.getId(), materiaId);
+            } else if (nota1 != null) {
+                Base.exec(
+                        "UPDATE inscripciones SET calificacion1 = ?, modificada = ?, comentario = ? WHERE user_id = ? AND materia_id = ?",
+                        nota1, yaTeniaNota ? 1 : 0, comentario, alumno.getId(), materiaId);
+            } else if (nota2 != null) {
+                Base.exec(
+                        "UPDATE inscripciones SET calificacion2 = ?, modificada = ?, comentario = ? WHERE user_id = ? AND materia_id = ?",
+                        nota2, yaTeniaNota ? 1 : 0, comentario, alumno.getId(), materiaId);
             } else {
+                res.redirect("/profesor/materias/" + materiaId + "/alumnos?error="
+                        + URLEncoder.encode("Ingresá al menos una nota.", StandardCharsets.UTF_8));
+                return "";
+            }
+
+            // Actualizar promedio_materia si tiene las dos notas
+            if (nota1 != null && nota2 != null) {
+                double promedio = (nota1 + nota2) / 2;
                 Base.exec(
-                        "UPDATE inscripciones SET calificacion = ?, modificada = 0, comentario = NULL WHERE user_id = ? AND materia_id = ?",
-                        nota, alumno.getId(), materiaId);
+                        "UPDATE inscripciones SET promedio_materia = ? WHERE user_id = ? AND materia_id = ?",
+                        promedio, alumno.getId(), materiaId);
             }
 
             res.redirect("/profesor/materias/" + materiaId + "/alumnos?message="
@@ -1093,7 +1143,7 @@ public class App {
 
             // Verificar si la cuenta está bloqueada NUEVO
             int blocked = ac.getInteger("blocked");
-            //variable para que no se bloquee al admin
+            // variable para que no se bloquee al admin
             String roleCheck = ac.getString("role");
             if (blocked == 1 && !"admin".equals(roleCheck)) {
                 res.status(401);
@@ -1137,9 +1187,9 @@ public class App {
                 res.redirect("/dashboard");
                 return null;
             } else {
-                //variable para que no se bloquee al admin
+                // variable para que no se bloquee al admin
                 String userRole = ac.getString("role");
-                if("admin".equals(userRole)){
+                if ("admin".equals(userRole)) {
                     res.status(401);
                     model.put("errorMessage", "Usuario o contraseña incorrectos.");
                     return new ModelAndView(model, "login.mustache");
@@ -1290,13 +1340,14 @@ public class App {
             return "";
         });
 
-                // GET: Panel de estadísticas generales del sistema.
+        // GET: Panel de estadísticas generales del sistema.
         // Solo accesible para el administrador.
         // Muestra conteos de usuarios, materias, inscripciones, quejas y destacados.
         get("/admin/estadisticas", (req, res) -> {
 
             // Verificar sesión activa
-            if (!SessionManager.checkSession(req, res)) return null;
+            if (!SessionManager.checkSession(req, res))
+                return null;
 
             // Solo el admin puede acceder
             if (!esAdmin(req)) {
@@ -1307,26 +1358,25 @@ public class App {
             Map<String, Object> model = new HashMap<>();
 
             // --- Conteos generales ---
-            long totalAlumnos        = Base.count("users", "role = ?", "alumno");
-            long totalProfesores     = Base.count("users", "role = ?", "profesor");
-            long totalMaterias       = Base.count("materias");
-            long totalInscripciones  = Base.count("inscripciones");
+            long totalAlumnos = Base.count("users", "role = ?", "alumno");
+            long totalProfesores = Base.count("users", "role = ?", "profesor");
+            long totalMaterias = Base.count("materias");
+            long totalInscripciones = Base.count("inscripciones");
 
             // --- Quejas agrupadas por estado ---
             long quejasPendientes = Base.count("complaints", "status = ?", "PENDIENTE");
             long quejasEnRevision = Base.count("complaints", "status = ?", "EN_REVISION");
-            long quejasResueltas  = Base.count("complaints", "status = ?", "RESUELTA");
-            long quejasTotal      = quejasPendientes + quejasEnRevision + quejasResueltas;
+            long quejasResueltas = Base.count("complaints", "status = ?", "RESUELTA");
+            long quejasTotal = quejasPendientes + quejasEnRevision + quejasResueltas;
 
             // --- Alumnos bloqueados por intentos fallidos ---
             long alumnosBloqueados = Base.count("users", "blocked = 1 AND role = ?", "alumno");
 
             // --- Materia con mayor cantidad de inscriptos ---
             List<Map> topMateria = Base.findAll(
-                "SELECT m.nombre, COUNT(i.id) as cantidad " +
-                "FROM materias m LEFT JOIN inscripciones i ON m.id = i.materia_id " +
-                "GROUP BY m.id ORDER BY cantidad DESC LIMIT 1"
-            );
+                    "SELECT m.nombre, COUNT(i.id) as cantidad " +
+                            "FROM materias m LEFT JOIN inscripciones i ON m.id = i.materia_id " +
+                            "GROUP BY m.id ORDER BY cantidad DESC LIMIT 1");
             if (!topMateria.isEmpty()) {
                 model.put("topMateriaNombre", topMateria.get(0).get("nombre"));
                 model.put("topMateriaCantidad", topMateria.get(0).get("cantidad"));
@@ -1335,15 +1385,15 @@ public class App {
 
             // --- Alumno con mejor promedio de calificaciones ---
             List<Map> topAlumno = Base.findAll(
-                "SELECT u.name, AVG(i.calificacion) as promedio " +
-                "FROM users u JOIN inscripciones i ON u.id = i.user_id " +
-                "WHERE i.calificacion IS NOT NULL AND u.role = 'alumno' " +
-                "GROUP BY u.id ORDER BY promedio DESC LIMIT 1"
-            );
+                    "SELECT u.name, AVG(i.calificacion) as promedio " +
+                            "FROM users u JOIN inscripciones i ON u.id = i.user_id " +
+                            "WHERE i.calificacion IS NOT NULL AND u.role = 'alumno' " +
+                            "GROUP BY u.id ORDER BY promedio DESC LIMIT 1");
             if (!topAlumno.isEmpty()) {
                 model.put("topAlumnoNombre", topAlumno.get(0).get("name"));
                 Object prom = topAlumno.get(0).get("promedio");
-                model.put("topAlumnoPromedio", prom != null ? String.format("%.2f", Double.parseDouble(prom.toString())) : "-");
+                model.put("topAlumnoPromedio",
+                        prom != null ? String.format("%.2f", Double.parseDouble(prom.toString())) : "-");
                 model.put("hayTopAlumno", true);
             }
 
@@ -1383,5 +1433,5 @@ public class App {
             return "";
         return java.net.URLEncoder.encode(msg, java.nio.charset.StandardCharsets.UTF_8);
     }
-    
+
 } // Fin de la clase App

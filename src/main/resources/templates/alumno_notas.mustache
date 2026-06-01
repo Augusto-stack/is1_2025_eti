@@ -20,53 +20,50 @@
             <thead>
                 <tr class="border-b bg-gray-50">
                     <th class="py-3 px-6">Materia</th>
-                    <th class="py-3 px-6">Calificación</th>
+                    <th class="py-3 px-6 whitespace-nowrap">Nota 1</th>
+                    <th class="py-3 px-6 whitespace-nowrap">Nota 2</th>
+                    <th class="py-3 px-6">Promedio</th>
                     <th class="py-3 px-6">Estado</th>
-                    <th class="py-3 px-6">Comentario</th>  <!-- ← nuevo -->
+                    <th class="py-3 px-6">Comentario</th>
                 </tr>
             </thead>
             <tbody>
-                {{#notas}}
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="py-3 px-6 font-medium">{{materia}}</td>
-                    <td class="py-3 px-6">{{calificacion}}</td>
-                    <td class="py-3 px-6">
-                        {{#aprobado}}
-                        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">
-                            Aprobado
-                        </span>
-                        {{/aprobado}}
-                        {{#desaprobado}}
-                        <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">
-                            Desaprobado
-                        </span>
-                        {{/desaprobado}}
-                        {{#modificada}}
-                        <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-semibold ml-1">
-                            Modificada
-                        </span>
-                        {{/modificada}}
-                        {{^tieneNota}}
-                        <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-semibold">
-                            Pendiente
-                        </span>
-                        {{/tieneNota}}
-                    </td>
-                    <td class="py-3 px-6 text-sm text-gray-500 italic">  <!-- ← nuevo -->
-                        {{#modificada}}
-                        {{comentario}}
-                        {{/modificada}}
-                    </td>
-                </tr>
-                {{/notas}}
-                {{^notas}}
-                <tr>
-                    <td colspan="4" class="py-4 px-6 text-center text-gray-400">
-                        No estás inscripto en ninguna materia todavía.
-                    </td>
-                </tr>
-                {{/notas}}
-            </tbody>
+    {{#notas}}
+    <tr class="border-b hover:bg-gray-50">
+        <td class="py-3 px-6 font-medium">{{materia}}</td>
+        <td class="py-3 px-6">{{calificacion1}}</td>
+        <td class="py-3 px-6">{{calificacion2}}</td>
+        <td class="py-3 px-6">
+            {{#tienePromedio}}{{promedio}}{{/tienePromedio}}
+            {{^tienePromedio}}Incompleto{{/tienePromedio}}
+        </td>
+        <td class="py-3 px-6">
+                {{#aprobado}}
+                <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-semibold">Aprobado</span>
+                {{/aprobado}}
+                {{#desaprobado}}
+                <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-semibold">Desaprobado</span>
+                {{/desaprobado}}
+                {{#modificada}}
+                <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-semibold ml-1">Modificada</span>
+                {{/modificada}}
+                {{^tienePromedio}}
+                <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded-full text-xs font-semibold">Pendiente</span>
+                {{/tienePromedio}}
+            </td>
+            <td class="py-3 px-6 text-sm text-gray-500 italic">
+                {{#modificada}}{{comentario}}{{/modificada}}
+            </td>
+        </tr>
+        {{/notas}}
+        {{^notas}}
+        <tr>
+            <td colspan="6" class="py-4 px-6 text-center text-gray-400">
+                No estás inscripto en ninguna materia todavía.
+            </td>
+        </tr>
+        {{/notas}}
+    </tbody>
         </table>
     </div>
 
