@@ -1385,9 +1385,9 @@ public class App {
 
             // --- Alumno con mejor promedio de calificaciones ---
             List<Map> topAlumno = Base.findAll(
-                    "SELECT u.name, AVG(i.calificacion) as promedio " +
+                    "SELECT u.name, AVG((i.calificacion1 + i.calificacion2) / 2.0) as promedio " +
                             "FROM users u JOIN inscripciones i ON u.id = i.user_id " +
-                            "WHERE i.calificacion IS NOT NULL AND u.role = 'alumno' " +
+                            "WHERE i.calificacion1 IS NOT NULL AND i.calificacion2 IS NOT NULL AND u.role = 'alumno' " +
                             "GROUP BY u.id ORDER BY promedio DESC LIMIT 1");
             if (!topAlumno.isEmpty()) {
                 model.put("topAlumnoNombre", topAlumno.get(0).get("name"));
