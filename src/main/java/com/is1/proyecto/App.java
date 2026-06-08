@@ -116,8 +116,8 @@ public class App {
                                 + "id INTEGER PRIMARY KEY AUTOINCREMENT,"
                                 + "user_id INTEGER NOT NULL,"
                                 + "materia_id INTEGER NOT NULL,"
-                                + "calificacion1 REAL DEFAULT NULL," // ← nota 1
-                                + "calificacion2 REAL DEFAULT NULL," // ← nota 2
+                                + "calificacion1 REAL DEFAULT NULL," // nota 1
+                                + "calificacion2 REAL DEFAULT NULL," // nota 2
                                 + "modificada INTEGER DEFAULT 0,"
                                 + "comentario TEXT DEFAULT NULL,"
                                 + "FOREIGN KEY (user_id) REFERENCES users(id),"
@@ -377,7 +377,7 @@ public class App {
         }, new MustacheTemplateEngine()); // ← cierre del GET
 
         // Nuevo
-        // POST: Inscribirse a una materia ← ahora está AFUERA del GET
+        // POST: Inscribirse a una materia, ahora está AFUERA del GET
         post("/alumno/inscribirse/:id", (req, res) -> {
             Boolean loggedIn = req.session().attribute("loggedIn");
             String userRole = req.session().attribute("userRole");
@@ -410,7 +410,7 @@ public class App {
         });
 
         // Nuevo
-        // POST: Desinscribirse de una materia ← también AFUERA del GET
+        // POST: Desinscribirse de una materia,también AFUERA del GET
         post("/alumno/desinscribirse/:id", (req, res) -> {
             Boolean loggedIn = req.session().attribute("loggedIn");
             String userRole = req.session().attribute("userRole");
@@ -548,7 +548,7 @@ public class App {
             return new ModelAndView(model, "profesor_materias.mustache");
         }, new MustacheTemplateEngine());
 
-        // Para que el profesor vea los inscriptos en su mate
+        // Para que el profesor vea los inscriptos en su materia
         get("/profesor/materias/:id/alumnos", (req, res) -> {
             Map<String, Object> model = new HashMap<>();
 
@@ -838,7 +838,7 @@ public class App {
             return "";
         });
 
-        // NUEVO...
+        // NUEVO
         // POST: Desbloquear cuenta de usuario
         post("/admin/desbloquear/:nombre", (req, res) -> {
             // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
@@ -868,7 +868,7 @@ public class App {
                     + URLEncoder.encode("Usuario " + nombre + " desbloqueado exitosamente.", StandardCharsets.UTF_8));
             return "";
         });
-        // NUEVO...
+        // NUEVO
 
         // GET: Ruta para cerrar la sesión del usuario.
         get("/logout", (req, res) -> {
@@ -949,7 +949,6 @@ public class App {
         }, new MustacheTemplateEngine());
 
         // GET: Vista para que el ADMIN vea todas las quejas enviadas por los alumnos
-        // --- ESTA ES LA ÚNICA QUE DEBE QUEDAR ---
         get("/admin/quejas", (req, res) -> {
             if (!esAdmin(req)) {
                 res.redirect("/dashboard?error=" + encode("No tenés permisos."));
@@ -978,14 +977,12 @@ public class App {
             }
 
             model.put("quejas", listaQuejas);
-            // IMPORTANTE: Que el nombre termine en 's' (admin_quejas.mustache)
             return new ModelAndView(model, "admin_quejas.mustache");
         }, new MustacheTemplateEngine());
         // POST de los profesores, envia el formulario con el alta de los datos del
         // nuevo profesor
 
         post("/cargarProfesor", (req, res) -> {
-            // NUEVO 4/4: Verificar sesión activa y expiración por inactividad.
             if (!SessionManager.checkSession(req, res))
                 return null;
 
@@ -994,15 +991,15 @@ public class App {
             String lastname = req.queryParams("lastName");
             String email = req.queryParams("email");
             String dniStr = req.queryParams("dni");
-            String username = req.queryParams("username"); // (NUEVO)
-            String password = req.queryParams("password"); // (NUEVO)
+            String username = req.queryParams("username");
+            String password = req.queryParams("password");
 
             // Validaciones básicas: campos no pueden ser nulos o vacíos.
             if (name == null || name.isEmpty() || lastname == null || lastname.isEmpty()
                     || email == null || email.isEmpty()
                     || dniStr == null || dniStr.isEmpty()
-                    || username == null || username.isEmpty() // ← nuevo
-                    || password == null || password.isEmpty()) { // ← nuevo
+                    || username == null || username.isEmpty()
+                    || password == null || password.isEmpty()) {
                 res.redirect("/cargarProfesor?error="
                         + URLEncoder.encode("Todos los campos son requeridos.", StandardCharsets.UTF_8));
                 return "";
@@ -1029,7 +1026,7 @@ public class App {
                 return "";
             }
 
-            // Verificar que no haya nombre de usuario igual en la BD (NUEVO)
+            // Verificar que no haya nombre de usuario igual en la BD
             User usernameExiste = User.findFirst("name = ?", username);
             if (usernameExiste != null) {
                 res.redirect("/cargarProfesor?error=" + URLEncoder
@@ -1046,7 +1043,7 @@ public class App {
                 teacher.set("email", email);
                 teacher.saveIt();
 
-                // Creamos las credenciales del profesor (NUEVO)
+                // Creamos las credenciales del profesor
                 User nuevoUser = new User();
                 nuevoUser.set("name", username);
                 nuevoUser.set("password", BCrypt.hashpw(password, BCrypt.gensalt()));
@@ -1055,7 +1052,7 @@ public class App {
                 nuevoUser.set("blocked", 0);
                 nuevoUser.saveIt();
 
-                // Vinculamos el teacher con el user ← nuevo
+                // Vinculamos el teacher con el user
                 teacher.set("user_id", nuevoUser.getId());
                 teacher.saveIt();
 
@@ -1107,7 +1104,6 @@ public class App {
             } catch (Exception e) {
                 // Si ocurre cualquier error durante la operación de DB (ej. nombre de usuario
                 // duplicado),
-                // se captura aquí y se redirige con un mensaje de error.
                 System.err.println("Error al registrar la cuenta: " + e.getMessage());
                 e.printStackTrace(); // Imprime el stack trace para depuración.
                 res.status(500); // Código de estado HTTP 500 (Internal Server Error).
@@ -1217,7 +1213,6 @@ public class App {
         }, new MustacheTemplateEngine()); // Especifica el motor de plantillas para esta ruta POST.
 
         // POST: Endpoint para añadir usuarios (API que devuelve JSON, no HTML).
-        // Advertencia: Esta ruta tiene un propósito diferente a las de formulario HTML.
         post("/add_users", (req, res) -> {
             res.type("application/json"); // Establece el tipo de contenido de la respuesta a JSON.
 
@@ -1311,7 +1306,6 @@ public class App {
                 // 2. Creamos un nuevo mapa para poder agregarle datos extra
                 Map<String, Object> quejaMap = new HashMap<>(q);
 
-                // 3. AQUÍ VA EL AJUSTE LÓGICO:
                 // Creamos la "bandera" esResuelta que Mustache usará para filtrar
                 quejaMap.put("esResuelta", "RESUELTA".equals(q.get("status")));
 
